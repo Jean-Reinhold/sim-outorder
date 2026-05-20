@@ -142,8 +142,8 @@ The workflow at `.github/workflows/experiments.yml` does this automatically:
 
 ```text
 1. Resolve the selected benchmark set into a GitHub Actions matrix.
-2. Warm the Docker Buildx layer cache for the SimpleScalar image.
-3. Run one benchmark per matrix job so benchmark shards execute in parallel.
+2. Build the Docker image inside each matrix job so image builds and benchmark shards both run in parallel.
+3. Run one benchmark per matrix job.
 4. Upload each shard as an artifact.
 5. Merge shards with `scripts/merge_results.py`.
 6. Generate the static report with `scripts/generate_report.py`.
