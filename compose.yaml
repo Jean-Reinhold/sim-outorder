@@ -1,0 +1,19 @@
+services:
+  sim-outorder:
+    build:
+      context: .
+    image: sim-outorder:local
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command:
+      - python3
+      - scripts/run_experiments.py
+      - --benchmarks
+      - quick
+      - --experiment-set
+      - smoke
+      - --max-instructions
+      - "100000"
+      - --output
+      - results/smoke

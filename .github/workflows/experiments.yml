@@ -1,0 +1,97 @@
+name: Experiments And Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      benchmark_set:
+        description: Benchmark set or comma-separated benchmark names
+        required: true
+        default: all
+      experiment_set:
+        description: Experiment set or comma-separated experiment IDs
+        required: true
+        default: assignment
+      max_instructions:
+        description: Instruction cap per run, use 0 for full benchmark execution
+        required: true
+        default: "100000"
+      timeout_sec:
+        description: Timeout per simulator run, use 0 for no timeout
+        required: true
+        default: "1800"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: sim-outorder:ci
+  BENCHMARK_SET: ${{ github.event.inputs.benchmark_set || vars.BENCHMARK_SET || 'all' }}
+  EXPERIMENT_SET: ${{ github.event.inputs.experiment_set || vars.EXPERIMENT_SET || 'assignment' }}
+  MAX_INSTRUCTIONS: ${{ github.event.inputs.max_instructions || vars.MAX_INSTRUCTIONS || '100000' }}
+  TIMEOUT_SEC: ${{ github.event.inputs.timeout_sec || vars.TIMEOUT_SEC || '1800' }}
+  RESULTS_DIR: results/ci
+
+jobs:
+  experiments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build SimpleScalar image
+        run: docker build -t "$IMAGE_NAME" .
+
+      - name: Run experiments
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            "$IMAGE_NAME" \
+            python3 scripts/run_experiments.py \
+              --benchmarks "$BENCHMARK_SET" \
+              --experiment-set "$EXPERIMENT_SET" \
+              --max-instructions "$MAX_INSTRUCTIONS" \
+              --timeout-sec "$TIMEOUT_SEC" \
+              --output "$RESULTS_DIR"
+
+      - name: Generate static report
+        run: python3 scripts/generate_report.py --results "$RESULTS_DIR" --output site
+
+      - name: Upload structured results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-outorder-results
+          path: |
+            ${{ env.RESULTS_DIR }}
+            site
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: experiments
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

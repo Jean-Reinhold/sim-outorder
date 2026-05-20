@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "title": "Sim-OutOrder: Experimentos com Processadores Superescalares",
+  "institution": "Universidade Federal de Pelotas",
+  "unit": "Centro de Desenvolvimento Tecnologico",
+  "course": "Arquitetura e Organizacao de Computadores Avancados",
+  "semester": "2026/1",
+  "simulator": "SimpleScalar sim-outorder",
+  "source_documents": [
+    "Arq_Avan_Trabalho_Sim-OutOrder_2026_1.pdf",
+    "Descricao das caracteristicas dos benchmarks.pdf"
+  ],
+  "tasks": {
+    "Tarefa 1": {
+      "title": "Execucao in-order e out-of-order",
+      "goal": "Medir total de ciclos e CPI para pipelines de largura 1, 2, 4 e 8, comparando despacho em ordem e fora de ordem.",
+      "questions": [
+        "Qual e o impacto em CPI de permitir mais instrucoes por ciclo?",
+        "Qual e o impacto em CPI do uso de execucao fora de ordem?",
+        "Um pipeline mais largo e mais efetivo em ordem ou fora de ordem?"
+      ]
+    },
+    "Tarefa 2": {
+      "title": "Efeito do tamanho da janela",
+      "goal": "Medir o impacto do tamanho da janela RUU em simulacoes fora de ordem, mantendo largura e recursos de execucao fixos.",
+      "questions": [
+        "Qual e o impacto em CPI ao utilizar janelas maiores?",
+        "A melhoria satura em algum tamanho de janela?"
+      ]
+    },
+    "Tarefa 3": {
+      "title": "Analise dos previsores de desvio",
+      "goal": "Comparar nottaken, taken e bimod, usando perfect como baseline de limite superior.",
+      "questions": [
+        "Quais estatisticas de uso do previsor aparecem para cada benchmark?",
+        "Quanto a previsao de desvios afeta o CPI em relacao ao previsor perfeito?",
+        "Qual e o ganho relativo de um previsor bimodal?"
+      ]
+    },
+    "Tarefa 4": {
+      "title": "Customizacao do processador",
+      "goal": "Testar ate tres configuracoes especializadas por benchmark e escolher o melhor compromisso entre desempenho e custo.",
+      "questions": [
+        "Qual configuracao teve o menor CPI para cada benchmark?",
+        "A configuracao vencedora justifica seu custo arquitetural?",
+        "Alem de CPI, quais parametros de custo devem ser avaliados?"
+      ]
+    }
+  }
+}

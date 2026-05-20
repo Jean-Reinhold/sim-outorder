@@ -1,0 +1,445 @@
+{
+  "schema_version": 1,
+  "sets": {
+    "smoke": ["task1_width1_ooo", "task3_bimod"],
+    "task1": [
+      "task1_width1_inorder",
+      "task1_width1_ooo",
+      "task1_width2_inorder",
+      "task1_width2_ooo",
+      "task1_width4_inorder",
+      "task1_width4_ooo",
+      "task1_width8_inorder",
+      "task1_width8_ooo"
+    ],
+    "task2": [
+      "task2_window4",
+      "task2_window8",
+      "task2_window16",
+      "task2_window32",
+      "task2_window64"
+    ],
+    "task3": [
+      "task3_nottaken",
+      "task3_taken",
+      "task3_bimod",
+      "task3_perfect"
+    ],
+    "task4": [
+      "task4_balanced",
+      "task4_memory_window",
+      "task4_compute_wide"
+    ],
+    "assignment": [
+      "task1_width1_inorder",
+      "task1_width1_ooo",
+      "task1_width2_inorder",
+      "task1_width2_ooo",
+      "task1_width4_inorder",
+      "task1_width4_ooo",
+      "task1_width8_inorder",
+      "task1_width8_ooo",
+      "task2_window4",
+      "task2_window8",
+      "task2_window16",
+      "task2_window32",
+      "task2_window64",
+      "task3_nottaken",
+      "task3_taken",
+      "task3_bimod",
+      "task3_perfect",
+      "task4_balanced",
+      "task4_memory_window",
+      "task4_compute_wide"
+    ]
+  },
+  "experiments": {
+    "task1_width1_inorder": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 1 em ordem",
+      "summary": "Baseline escalar com despacho em ordem.",
+      "options": {
+        "fetch:ifqsize": 1,
+        "decode:width": 1,
+        "issue:width": 1,
+        "issue:inorder": true,
+        "ruu:size": 4,
+        "commit:width": 1,
+        "lsq:size": 2,
+        "res:ialu": 1,
+        "res:imult": 1,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
+        "res:memport": 1
+      }
+    },
+    "task1_width1_ooo": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 1 fora de ordem",
+      "summary": "Baseline escalar com despacho fora de ordem.",
+      "options": {
+        "fetch:ifqsize": 1,
+        "decode:width": 1,
+        "issue:width": 1,
+        "issue:inorder": false,
+        "ruu:size": 4,
+        "commit:width": 1,
+        "lsq:size": 2,
+        "res:ialu": 1,
+        "res:imult": 1,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
+        "res:memport": 1
+      }
+    },
+    "task1_width2_inorder": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 2 em ordem",
+      "summary": "Pipeline superescalar estreito com despacho em ordem.",
+      "options": {
+        "fetch:ifqsize": 2,
+        "decode:width": 2,
+        "issue:width": 2,
+        "issue:inorder": true,
+        "ruu:size": 8,
+        "commit:width": 2,
+        "lsq:size": 4,
+        "res:ialu": 2,
+        "res:imult": 2,
+        "res:fpalu": 2,
+        "res:fpmult": 2,
+        "res:memport": 2
+      }
+    },
+    "task1_width2_ooo": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 2 fora de ordem",
+      "summary": "Pipeline superescalar estreito com despacho fora de ordem.",
+      "options": {
+        "fetch:ifqsize": 2,
+        "decode:width": 2,
+        "issue:width": 2,
+        "issue:inorder": false,
+        "ruu:size": 8,
+        "commit:width": 2,
+        "lsq:size": 4,
+        "res:ialu": 2,
+        "res:imult": 2,
+        "res:fpalu": 2,
+        "res:fpmult": 2,
+        "res:memport": 2
+      }
+    },
+    "task1_width4_inorder": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 4 em ordem",
+      "summary": "Configuração próxima ao default, mas com despacho em ordem.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": true,
+        "ruu:size": 16,
+        "commit:width": 4,
+        "lsq:size": 8,
+        "res:ialu": 4,
+        "res:imult": 4,
+        "res:fpalu": 4,
+        "res:fpmult": 4,
+        "res:memport": 4
+      }
+    },
+    "task1_width4_ooo": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 4 fora de ordem",
+      "summary": "Configuração próxima ao default com despacho fora de ordem.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 16,
+        "commit:width": 4,
+        "lsq:size": 8,
+        "res:ialu": 4,
+        "res:imult": 4,
+        "res:fpalu": 4,
+        "res:fpmult": 4,
+        "res:memport": 4
+      }
+    },
+    "task1_width8_inorder": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 8 em ordem",
+      "summary": "Pipeline largo com despacho em ordem.",
+      "options": {
+        "fetch:ifqsize": 8,
+        "decode:width": 8,
+        "issue:width": 8,
+        "issue:inorder": true,
+        "ruu:size": 32,
+        "commit:width": 8,
+        "lsq:size": 16,
+        "res:ialu": 8,
+        "res:imult": 8,
+        "res:fpalu": 8,
+        "res:fpmult": 8,
+        "res:memport": 8
+      }
+    },
+    "task1_width8_ooo": {
+      "task": "Tarefa 1",
+      "title": "Pipeline largura 8 fora de ordem",
+      "summary": "Pipeline largo com despacho fora de ordem.",
+      "options": {
+        "fetch:ifqsize": 8,
+        "decode:width": 8,
+        "issue:width": 8,
+        "issue:inorder": false,
+        "ruu:size": 32,
+        "commit:width": 8,
+        "lsq:size": 16,
+        "res:ialu": 8,
+        "res:imult": 8,
+        "res:fpalu": 8,
+        "res:fpmult": 8,
+        "res:memport": 8
+      }
+    },
+    "task2_window4": {
+      "task": "Tarefa 2",
+      "title": "Janela RUU 4",
+      "summary": "Execução fora de ordem com janela de instruções pequena.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 4,
+        "commit:width": 4,
+        "lsq:size": 2,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2
+      }
+    },
+    "task2_window8": {
+      "task": "Tarefa 2",
+      "title": "Janela RUU 8",
+      "summary": "Execução fora de ordem com janela de instruções moderada.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 8,
+        "commit:width": 4,
+        "lsq:size": 4,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2
+      }
+    },
+    "task2_window16": {
+      "task": "Tarefa 2",
+      "title": "Janela RUU 16",
+      "summary": "Execução fora de ordem com janela default do sim-outorder.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 16,
+        "commit:width": 4,
+        "lsq:size": 8,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2
+      }
+    },
+    "task2_window32": {
+      "task": "Tarefa 2",
+      "title": "Janela RUU 32",
+      "summary": "Execução fora de ordem com janela ampliada.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 32,
+        "commit:width": 4,
+        "lsq:size": 16,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2
+      }
+    },
+    "task2_window64": {
+      "task": "Tarefa 2",
+      "title": "Janela RUU 64",
+      "summary": "Execução fora de ordem com janela ampla para investigar saturação.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 64,
+        "commit:width": 4,
+        "lsq:size": 32,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2
+      }
+    },
+    "task3_nottaken": {
+      "task": "Tarefa 3",
+      "title": "Previsor nottaken",
+      "summary": "Sempre prediz desvio como nao tomado.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 16,
+        "commit:width": 4,
+        "lsq:size": 8,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2,
+        "bpred": "nottaken"
+      }
+    },
+    "task3_taken": {
+      "task": "Tarefa 3",
+      "title": "Previsor taken",
+      "summary": "Sempre prediz desvio como tomado.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 16,
+        "commit:width": 4,
+        "lsq:size": 8,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2,
+        "bpred": "taken"
+      }
+    },
+    "task3_bimod": {
+      "task": "Tarefa 3",
+      "title": "Previsor bimod",
+      "summary": "Previsor bimodal com tabela de contadores saturantes de 2 bits.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 16,
+        "commit:width": 4,
+        "lsq:size": 8,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2,
+        "bpred": "bimod"
+      }
+    },
+    "task3_perfect": {
+      "task": "Tarefa 3",
+      "title": "Previsor perfeito",
+      "summary": "Baseline de comparacao para medir o custo dos erros de previsao.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 16,
+        "commit:width": 4,
+        "lsq:size": 8,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 4,
+        "res:fpmult": 1,
+        "res:memport": 2,
+        "bpred": "perfect"
+      }
+    },
+    "task4_balanced": {
+      "task": "Tarefa 4",
+      "title": "Custom balanceado",
+      "summary": "Processador especializado inicial com largura moderada e custo contido.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 32,
+        "commit:width": 4,
+        "lsq:size": 16,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 2,
+        "res:fpmult": 1,
+        "res:memport": 2,
+        "bpred": "bimod"
+      }
+    },
+    "task4_memory_window": {
+      "task": "Tarefa 4",
+      "title": "Custom memoria/janela",
+      "summary": "Janela e LSQ maiores para cargas com maior pressao de load/store.",
+      "options": {
+        "fetch:ifqsize": 8,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 64,
+        "commit:width": 4,
+        "lsq:size": 32,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 2,
+        "res:fpmult": 1,
+        "res:memport": 4,
+        "bpred": "bimod"
+      }
+    },
+    "task4_compute_wide": {
+      "task": "Tarefa 4",
+      "title": "Custom largura/compute",
+      "summary": "Pipeline mais largo e mais unidades funcionais para testar ILP disponivel.",
+      "options": {
+        "fetch:ifqsize": 8,
+        "decode:width": 8,
+        "issue:width": 8,
+        "issue:inorder": false,
+        "ruu:size": 64,
+        "commit:width": 8,
+        "lsq:size": 32,
+        "res:ialu": 8,
+        "res:imult": 2,
+        "res:fpalu": 4,
+        "res:fpmult": 2,
+        "res:memport": 4,
+        "bpred": "bimod"
+      }
+    }
+  }
+}

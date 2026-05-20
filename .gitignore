@@ -1,0 +1,14 @@
+.DS_Store
+*.log
+
+# Generated experiment artifacts
+results/
+site/
+
+# Optional local SimpleScalar material. The Dockerfile builds from a pinned
+# upstream source snapshot by default, so these are only for private/offline use.
+third_party/
+
+# Python local state
+__pycache__/
+*.py[cod]

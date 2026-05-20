@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "sets": {
+    "quick": ["GCC_4"],
+    "short": ["GCC_4", "LI_2", "PERL_1"],
+    "all": ["GCC_1", "GCC_2", "GCC_3", "GCC_4", "GO_1", "LI_1", "LI_2", "LI_3", "PERL_1", "VORTEX_1", "VORTEX_2", "IJPEG_1", "IJPEG_2", "IJPEG_3"],
+    "ramiro_paz": ["GCC_1", "IJPEG_1"],
+    "tiago_mackedanz": ["GCC_2", "IJPEG_2"],
+    "mateus_schropfer": ["GCC_3", "IJPEG_3"],
+    "andressa_eduarda": ["GCC_4", "VORTEX_1"],
+    "max_barn": ["LI_1", "VORTEX_2"],
+    "mauricio_leitzke": ["GO_1", "IJPEG_1"],
+    "frederico_bueno": ["PERL_1", "IJPEG_2"],
+    "edinilson_marques": ["GCC_1", "VORTEX_1"],
+    "luiz_vitalino": ["LI_2", "VORTEX_1"],
+    "li3_vortex2": ["LI_3", "VORTEX_2"]
+  }
+}

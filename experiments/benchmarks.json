@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "benchmarks": {
+    "GCC_1": {
+      "family": "gcc",
+      "directory": "Benchmarks/gcc",
+      "program": "cc1.ss",
+      "args": ["gcc.i"],
+      "input": "gcc.i",
+      "total_instructions": 45079255,
+      "load_store_instructions": 16725170,
+      "description": "GNU C compiler workload that converts preprocessed C sources into optimized assembly output."
+    },
+    "GCC_2": {
+      "family": "gcc",
+      "directory": "Benchmarks/gcc",
+      "program": "cc1.ss",
+      "args": ["cccp.i"],
+      "input": "cccp.i",
+      "total_instructions": 263913440,
+      "load_store_instructions": 97415861,
+      "description": "GNU C compiler workload using the cccp.i source input."
+    },
+    "GCC_3": {
+      "family": "gcc",
+      "directory": "Benchmarks/gcc",
+      "program": "cc1.ss",
+      "args": ["stmt.i"],
+      "input": "stmt.i",
+      "total_instructions": 119243602,
+      "load_store_instructions": 44128859,
+      "description": "GNU C compiler workload using the stmt.i source input. The benchmark description PDF labels this line as gsmt.i."
+    },
+    "GCC_4": {
+      "family": "gcc",
+      "directory": "Benchmarks/gcc",
+      "program": "cc1.ss",
+      "args": ["jump.i"],
+      "input": "jump.i",
+      "total_instructions": 40111683,
+      "load_store_instructions": 14781513,
+      "description": "GNU C compiler workload using the jump.i source input."
+    },
+    "GO_1": {
+      "family": "go",
+      "directory": "Benchmarks/go",
+      "program": "go.ss",
+      "args": ["50", "9", "2stone9.in"],
+      "input": "2stone9.in",
+      "total_instructions": 548177449,
+      "load_store_instructions": 157214360,
+      "description": "Artificial-intelligence Go game workload configured to play against itself."
+    },
+    "LI_1": {
+      "family": "li",
+      "directory": "Benchmarks/li",
+      "program": "li.ss",
+      "args": ["li.lsp"],
+      "input": "li.lsp",
+      "total_instructions": 957027984,
+      "load_store_instructions": 455365442,
+      "description": "Lisp interpreter workload using li.lsp."
+    },
+    "LI_2": {
+      "family": "li",
+      "directory": "Benchmarks/li",
+      "program": "li.ss",
+      "args": ["queen6.lsp"],
+      "input": "queen6.lsp",
+      "total_instructions": 41735865,
+      "load_store_instructions": 19908981,
+      "description": "Lisp interpreter workload using queen6.lsp."
+    },
+    "LI_3": {
+      "family": "li",
+      "directory": "Benchmarks/li",
+      "program": "li.ss",
+      "args": ["train.lsp"],
+      "input": "train.lsp",
+      "total_instructions": 183304160,
+      "load_store_instructions": 77814350,
+      "description": "Lisp interpreter workload using train.lsp."
+    },
+    "PERL_1": {
+      "family": "perl",
+      "directory": "Benchmarks/perl",
+      "program": "perl.ss",
+      "args": ["scrabbl.pl"],
+      "stdin": "scrabbl.in",
+      "input": "scrabbl.in",
+      "total_instructions": 40483296,
+      "load_store_instructions": 18506844,
+      "description": "Perl interpreter workload for mathematical and associative-array search operations."
+    },
+    "VORTEX_1": {
+      "family": "vortex",
+      "directory": "Benchmarks/vortex",
+      "program": "vortex.ss",
+      "args": ["vortex.in"],
+      "input": "vortex.in",
+      "total_instructions": 73561153,
+      "load_store_instructions": 39479768,
+      "description": "Object-oriented database workload based on VORTEx."
+    },
+    "VORTEX_2": {
+      "family": "vortex",
+      "directory": "Benchmarks/vortex",
+      "program": "vortex.ss",
+      "args": ["tiny.in"],
+      "input": "tiny.in",
+      "total_instructions": 65133764,
+      "load_store_instructions": 34988295,
+      "description": "Object-oriented database workload based on VORTEx using the tiny input."
+    },
+    "IJPEG_1": {
+      "family": "ijpeg",
+      "directory": "Benchmarks/ijpeg",
+      "program": "ijpeg.ss",
+      "args": ["-image_file", "tinyrose.ppm", "-compression.quality", "90", "-compression.optimize_coding", "0", "-compression.smoothing_factor", "90", "-difference.image", "1", "-difference.x_stride", "10", "-difference.y_stride", "10", "-verbose", "1", "-GO.findoptcomp"],
+      "input": "tinyrose.ppm",
+      "total_instructions": 77042930,
+      "load_store_instructions": 19041737,
+      "description": "JPEG compression/decompression workload using tinyrose.ppm."
+    },
+    "IJPEG_2": {
+      "family": "ijpeg",
+      "directory": "Benchmarks/ijpeg",
+      "program": "ijpeg.ss",
+      "args": ["-image_file", "specmun.ppm", "-compression.quality", "90", "-compression.optimize_coding", "0", "-compression.smoothing_factor", "90", "-difference.image", "1", "-difference.x_stride", "10", "-difference.y_stride", "10", "-verbose", "1", "-GO.findoptcomp"],
+      "input": "specmun.ppm",
+      "total_instructions": 555571536,
+      "load_store_instructions": 141836930,
+      "description": "JPEG compression/decompression workload using specmun.ppm."
+    },
+    "IJPEG_3": {
+      "family": "ijpeg",
+      "directory": "Benchmarks/ijpeg",
+      "program": "ijpeg.ss",
+      "args": ["-image_file", "ijpeg.ppm", "-compression.quality", "90", "-compression.optimize_coding", "0", "-compression.smoothing_factor", "90", "-difference.image", "1", "-difference.x_stride", "10", "-difference.y_stride", "10", "-verbose", "1", "-GO.findoptcomp"],
+      "input": "ijpeg.ppm",
+      "total_instructions": 555550408,
+      "load_store_instructions": 141829120,
+      "description": "JPEG compression/decompression workload using ijpeg.ppm."
+    }
+  }
+}
