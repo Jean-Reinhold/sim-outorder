@@ -289,7 +289,7 @@ def run_one(
     stdout_path.write_text(stdout, encoding="utf-8", errors="replace")
     stderr_path.write_text(stderr, encoding="utf-8", errors="replace")
 
-    stats = parse_stats(stdout)
+    stats = parse_stats(stdout + "\n" + stderr)
     run = {
         "benchmark": benchmark_name,
         "benchmark_family": benchmark["family"],
