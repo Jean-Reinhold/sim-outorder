@@ -21,7 +21,9 @@ experiments/benchmark_sets.json    Named benchmark groups, including course pair
 experiments/experiment_sets.json   Assignment experiment configurations
 experiments/report.json            Report title, task descriptions, and questions
 scripts/run_experiments.py         Only supported experiment runner
+scripts/merge_results.py           Merges parallel benchmark shards for CI/Pages
 scripts/generate_report.py         Only supported static report generator
+scripts/validate_site.py           Validates generated Pages output before deploy
 .github/workflows/experiments.yml  CI and Pages deployment workflow
 .opencode/agents/experiment-analyst.md       OpenCode subagent for interpreting measured results
 .opencode/commands/analyze-experiments.md    OpenCode slash command for the analysis workflow
@@ -58,6 +60,7 @@ Use dry-run mode for metadata-only validation:
 ```sh
 python3 scripts/run_experiments.py --benchmarks quick --experiment-set assignment --dry-run --output results/dry-run
 python3 scripts/generate_report.py --results results/dry-run --output site
+python3 scripts/validate_site.py --site site --results results/dry-run
 ```
 
 For final runs, use the selected course pair benchmark set and `EXPERIMENTS=assignment`. Use `MAX_INST=0` only when full uncapped simulation time is acceptable.

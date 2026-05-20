@@ -378,6 +378,457 @@ def analysis_section(grouped: dict[str, list[dict[str, Any]]]) -> str:
     """
 
 
+def completed_cpi_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [run for run in runs if run.get("status") == "completed" and cpi(run) is not None]
+
+
+def mean(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def load_store_ratio(benchmark: dict[str, Any]) -> float | None:
+    total = benchmark.get("total_instructions")
+    load_store = benchmark.get("load_store_instructions")
+    if not isinstance(total, (int, float)) or not isinstance(load_store, (int, float)) or total <= 0:
+        return None
+    return load_store / total * 100
+
+
+def architecture_cost(options: dict[str, Any]) -> int:
+    return sum(
+        int(options.get(name, 0) or 0)
+        for name in ["ruu:size", "lsq:size", "res:ialu", "res:imult", "res:fpalu", "res:fpmult", "res:memport"]
+    )
+
+
+def palette(index: int) -> str:
+    colors = ["#1bd7ff", "#00d084", "#f6c343", "#ff5a8a", "#9b7cff", "#42f5b0", "#ff8a3d", "#6ea8ff"]
+    return colors[index % len(colors)]
+
+
+def value_range(values: list[float], pad: float = 0.08) -> tuple[float, float]:
+    low = min(values)
+    high = max(values)
+    if math.isclose(low, high):
+        spread = abs(high) * 0.1 or 1.0
+        return low - spread, high + spread
+    spread = high - low
+    return low - spread * pad, high + spread * pad
+
+
+def chart_empty(message: str) -> str:
+    return f"<div class=\"plot-empty\">{h(message)}</div>"
+
+
+def chart_card(title: str, subtitle: str, body: str, note: str) -> str:
+    return f"""
+    <article class="plot-card">
+      <div class="plot-card-head"><span>{h(subtitle)}</span><h3>{h(title)}</h3></div>
+      {body}
+      <p class="plot-note">{h(note)}</p>
+    </article>
+    """
+
+
+def best_cpi_chart(results: dict[str, Any]) -> str:
+    best_runs = best_by_benchmark(completed_cpi_runs(results.get("runs", [])))
+    data = [(run["benchmark"], cpi(run), run["experiment"]) for run in best_runs if cpi(run) is not None]
+    if not data:
+        return chart_empty("Sem CPI completo suficiente para ranquear benchmarks.")
+
+    data.sort(key=lambda item: item[1] or math.inf)
+    max_value = max(value for _, value, _ in data if value is not None)
+    width = 980
+    row_h = 36
+    top = 48
+    left = 140
+    plot_w = 720
+    height = top + row_h * len(data) + 34
+    grid = []
+    for idx in range(5):
+        value = max_value * idx / 4
+        x = left + plot_w * idx / 4
+        grid.append(f'<line x1="{x:.1f}" y1="34" x2="{x:.1f}" y2="{height - 28}" class="plot-grid"/>')
+        grid.append(f'<text x="{x:.1f}" y="24" class="plot-axis" text-anchor="middle">{h(fmt(value, 2))}</text>')
+
+    rows = []
+    for index, (benchmark, value, experiment) in enumerate(data):
+        if value is None:
+            continue
+        y = top + index * row_h
+        bar_w = max(4, value / max_value * plot_w)
+        rows.append(
+            f'<g class="plot-row">'
+            f'<text x="18" y="{y + 18}" class="plot-label">{h(benchmark)}</text>'
+            f'<rect x="{left}" y="{y}" width="{plot_w}" height="18" rx="9" class="plot-track"/>'
+            f'<rect x="{left}" y="{y}" width="{bar_w:.1f}" height="18" rx="9" fill="url(#bestCpiGradient)"/>'
+            f'<text x="{left + bar_w + 10:.1f}" y="{y + 14}" class="plot-value">{h(fmt(value))}</text>'
+            f'<text x="{width - 18}" y="{y + 14}" class="plot-muted" text-anchor="end">{h(experiment)}</text>'
+            f'</g>'
+        )
+
+    return f"""
+    <svg class="plot-svg tall" viewBox="0 0 {width} {height}" role="img" aria-label="Ranking de melhor CPI por benchmark">
+      <title>Ranking de melhor CPI por benchmark</title>
+      <defs><linearGradient id="bestCpiGradient" x1="0" x2="1"><stop offset="0" stop-color="#1bd7ff"/><stop offset="1" stop-color="#f6c343"/></linearGradient></defs>
+      <text x="18" y="24" class="plot-axis">CPI observado: menor barra = melhor desempenho</text>
+      {''.join(grid)}
+      {''.join(rows)}
+    </svg>
+    """
+
+
+def workload_scatter_chart(results: dict[str, Any]) -> str:
+    best_runs = {run["benchmark"]: run for run in best_by_benchmark(completed_cpi_runs(results.get("runs", [])))}
+    points = []
+    for benchmark, run in best_runs.items():
+        bench = results.get("benchmarks", {}).get(benchmark, {})
+        ratio = load_store_ratio(bench)
+        value = cpi(run)
+        if ratio is not None and value is not None:
+            points.append((benchmark, bench.get("family", ""), ratio, value))
+    if len(points) < 2:
+        return chart_empty("Sao necessarios pelo menos dois benchmarks completos para correlacionar mix e CPI.")
+
+    x_min, x_max = value_range([point[2] for point in points], 0.12)
+    y_min, y_max = value_range([point[3] for point in points], 0.12)
+    width = 980
+    height = 430
+    left = 72
+    top = 36
+    plot_w = 820
+    plot_h = 310
+    families = {family: palette(index) for index, family in enumerate(sorted({point[1] for point in points}))}
+
+    grid = []
+    for idx in range(5):
+        x = left + plot_w * idx / 4
+        x_value = x_min + (x_max - x_min) * idx / 4
+        grid.append(f'<line x1="{x:.1f}" y1="{top}" x2="{x:.1f}" y2="{top + plot_h}" class="plot-grid"/>')
+        grid.append(f'<text x="{x:.1f}" y="{top + plot_h + 30}" class="plot-axis" text-anchor="middle">{x_value:.0f}%</text>')
+    for idx in range(4):
+        y = top + plot_h * idx / 3
+        y_value = y_max - (y_max - y_min) * idx / 3
+        grid.append(f'<line x1="{left}" y1="{y:.1f}" x2="{left + plot_w}" y2="{y:.1f}" class="plot-grid"/>')
+        grid.append(f'<text x="{left - 12}" y="{y + 4:.1f}" class="plot-axis" text-anchor="end">{h(fmt(y_value, 2))}</text>')
+
+    point_markup = []
+    for benchmark, family, ratio, value in points:
+        x = left + (ratio - x_min) / (x_max - x_min) * plot_w
+        y = top + (y_max - value) / (y_max - y_min) * plot_h
+        color = families.get(family, palette(0))
+        point_markup.append(
+            f'<g class="scatter-point">'
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="9" fill="{color}"/>'
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="16" fill="{color}" opacity="0.16"/>'
+            f'<text x="{x + 13:.1f}" y="{y - 10:.1f}" class="plot-label tiny">{h(benchmark)}</text>'
+            f'</g>'
+        )
+    legend = []
+    for index, (family, color) in enumerate(families.items()):
+        x = left + index * 115
+        legend.append(f'<circle cx="{x}" cy="396" r="6" fill="{color}"/><text x="{x + 12}" y="400" class="plot-axis">{h(family)}</text>')
+
+    return f"""
+    <svg class="plot-svg" viewBox="0 0 {width} {height}" role="img" aria-label="Carga de load-store contra melhor CPI">
+      <title>Carga de load-store contra melhor CPI</title>
+      {''.join(grid)}
+      <text x="{left + plot_w / 2}" y="{height - 8}" class="plot-axis" text-anchor="middle">percentual de instrucoes load/store no benchmark</text>
+      <text x="18" y="28" class="plot-axis">melhor CPI observado</text>
+      {''.join(point_markup)}
+      {''.join(legend)}
+    </svg>
+    """
+
+
+def multi_line_chart(title: str, x_values: list[int], series: list[tuple[str, dict[int, float], str]], x_label: str) -> str:
+    available_values = [value for _, points, _ in series for value in points.values()]
+    if not available_values or not x_values:
+        return chart_empty(f"Sem dados completos para {title}.")
+    y_min, y_max = value_range(available_values, 0.15)
+    width = 980
+    height = 400
+    left = 72
+    top = 34
+    plot_w = 820
+    plot_h = 275
+
+    def x_pos(value: int) -> float:
+        if len(x_values) == 1:
+            return left + plot_w / 2
+        return left + x_values.index(value) / (len(x_values) - 1) * plot_w
+
+    def y_pos(value: float) -> float:
+        return top + (y_max - value) / (y_max - y_min) * plot_h
+
+    grid = []
+    for value in x_values:
+        x = x_pos(value)
+        grid.append(f'<line x1="{x:.1f}" y1="{top}" x2="{x:.1f}" y2="{top + plot_h}" class="plot-grid"/>')
+        grid.append(f'<text x="{x:.1f}" y="{top + plot_h + 28}" class="plot-axis" text-anchor="middle">{value}</text>')
+    for idx in range(4):
+        y = top + plot_h * idx / 3
+        y_value = y_max - (y_max - y_min) * idx / 3
+        grid.append(f'<line x1="{left}" y1="{y:.1f}" x2="{left + plot_w}" y2="{y:.1f}" class="plot-grid"/>')
+        grid.append(f'<text x="{left - 12}" y="{y + 4:.1f}" class="plot-axis" text-anchor="end">{h(fmt(y_value, 2))}</text>')
+
+    lines = []
+    for index, (label, points, color) in enumerate(series):
+        coords = [(x_pos(x), y_pos(points[x])) for x in x_values if x in points]
+        if not coords:
+            continue
+        path = " ".join(("M" if idx == 0 else "L") + f" {x:.1f} {y:.1f}" for idx, (x, y) in enumerate(coords))
+        circles = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{color}"/>' for x, y in coords)
+        legend_y = 356 + index * 20
+        lines.append(
+            f'<path d="{path}" fill="none" stroke="{color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
+            f'{circles}'
+            f'<line x1="72" y1="{legend_y}" x2="104" y2="{legend_y}" stroke="{color}" stroke-width="4" stroke-linecap="round"/>'
+            f'<text x="114" y="{legend_y + 4}" class="plot-axis">{h(label)}</text>'
+        )
+
+    return f"""
+    <svg class="plot-svg" viewBox="0 0 {width} {height}" role="img" aria-label="{h(title)}">
+      <title>{h(title)}</title>
+      {''.join(grid)}
+      {''.join(lines)}
+      <text x="18" y="28" class="plot-axis">CPI medio</text>
+      <text x="{left + plot_w / 2}" y="{height - 12}" class="plot-axis" text-anchor="middle">{h(x_label)}</text>
+    </svg>
+    """
+
+
+def task1_width_visual(runs: list[dict[str, Any]]) -> str:
+    grouped_values: dict[str, dict[int, list[float]]] = {"in-order": {}, "out-of-order": {}}
+    for run in completed_cpi_runs(runs):
+        width, mode = width_and_mode(run)
+        value = cpi(run)
+        if width is None or value is None:
+            continue
+        grouped_values.setdefault(mode, {}).setdefault(width, []).append(value)
+    widths = sorted({width for values in grouped_values.values() for width in values})
+    series = [
+        ("in-order", {width: mean(values) for width, values in grouped_values.get("in-order", {}).items() if mean(values) is not None}, "#f6c343"),
+        ("out-of-order", {width: mean(values) for width, values in grouped_values.get("out-of-order", {}).items() if mean(values) is not None}, "#1bd7ff"),
+    ]
+    return multi_line_chart("CPI medio por largura", widths, series, "largura de issue/decode/commit")
+
+
+def task2_window_visual(runs: list[dict[str, Any]]) -> str:
+    grouped_values: dict[int, list[float]] = {}
+    for run in completed_cpi_runs(runs):
+        value = cpi(run)
+        ruu = run.get("options", {}).get("ruu:size")
+        if isinstance(ruu, int) and value is not None:
+            grouped_values.setdefault(ruu, []).append(value)
+    windows = sorted(grouped_values)
+    series = [("media dos benchmarks", {window: mean(values) for window, values in grouped_values.items() if mean(values) is not None}, "#00d084")]
+    return multi_line_chart("CPI medio por tamanho da janela", windows, series, "tamanho da RUU")
+
+
+def predictor_overhead_chart(runs: list[dict[str, Any]]) -> str:
+    perfect: dict[str, float] = {}
+    for run in completed_cpi_runs(runs):
+        value = cpi(run)
+        if predictor(run) == "perfect" and value is not None:
+            perfect[run["benchmark"]] = value
+
+    grouped_values: dict[str, list[float]] = {}
+    for run in completed_cpi_runs(runs):
+        value = cpi(run)
+        baseline = perfect.get(run["benchmark"])
+        if value is None or baseline is None or baseline <= 0:
+            continue
+        grouped_values.setdefault(predictor(run), []).append((value / baseline - 1) * 100)
+
+    order = [name for name in ["perfect", "bimod", "taken", "nottaken"] if name in grouped_values]
+    data = [(name, mean(grouped_values[name]) or 0.0) for name in order]
+    if not data:
+        return chart_empty("Sem baseline perfect completo para comparar previsores.")
+
+    min_value = min(0.0, min(value for _, value in data))
+    max_value = max(0.0, max(value for _, value in data))
+    if math.isclose(min_value, max_value):
+        max_value = min_value + 1.0
+    width = 980
+    height = 360
+    left = 96
+    top = 42
+    plot_w = 780
+    plot_h = 210
+    zero_x = left + (0 - min_value) / (max_value - min_value) * plot_w
+    row_h = 46
+    rows = [f'<line x1="{zero_x:.1f}" y1="{top - 8}" x2="{zero_x:.1f}" y2="{top + plot_h + 8}" class="plot-zero"/>']
+    for index, (name, value) in enumerate(data):
+        y = top + index * row_h
+        x = left + (min(value, 0) - min_value) / (max_value - min_value) * plot_w
+        bar_w = abs(value) / (max_value - min_value) * plot_w
+        rows.append(
+            f'<text x="18" y="{y + 18}" class="plot-label">{h(name)}</text>'
+            f'<rect x="{x:.1f}" y="{y}" width="{max(2, bar_w):.1f}" height="20" rx="10" fill="{palette(index)}"/>'
+            f'<text x="{x + bar_w + 10:.1f}" y="{y + 15}" class="plot-value">{h(pct(value))}</text>'
+        )
+    return f"""
+    <svg class="plot-svg compact" viewBox="0 0 {width} {height}" role="img" aria-label="Overhead medio dos previsores contra perfect">
+      <title>Overhead medio dos previsores contra perfect</title>
+      <text x="18" y="28" class="plot-axis">overhead medio vs perfect; menor e melhor</text>
+      {''.join(rows)}
+    </svg>
+    """
+
+
+def task4_cost_scatter_chart(runs: list[dict[str, Any]]) -> str:
+    grouped_values: dict[str, list[float]] = {}
+    costs: dict[str, int] = {}
+    titles: dict[str, str] = {}
+    for run in completed_cpi_runs(runs):
+        value = cpi(run)
+        if value is None:
+            continue
+        exp = run["experiment"]
+        grouped_values.setdefault(exp, []).append(value)
+        costs[exp] = architecture_cost(run.get("options", {}))
+        titles[exp] = run.get("experiment_title", exp)
+    points = [(exp, titles.get(exp, exp), costs[exp], mean(values) or 0.0) for exp, values in grouped_values.items()]
+    if len(points) < 2:
+        return chart_empty("Sao necessarias ao menos duas customizacoes completas para comparar custo e CPI.")
+
+    x_min, x_max = value_range([float(point[2]) for point in points], 0.16)
+    y_min, y_max = value_range([point[3] for point in points], 0.16)
+    width = 980
+    height = 410
+    left = 74
+    top = 34
+    plot_w = 810
+    plot_h = 280
+    grid = []
+    for idx in range(4):
+        x = left + plot_w * idx / 3
+        x_value = x_min + (x_max - x_min) * idx / 3
+        grid.append(f'<line x1="{x:.1f}" y1="{top}" x2="{x:.1f}" y2="{top + plot_h}" class="plot-grid"/>')
+        grid.append(f'<text x="{x:.1f}" y="{top + plot_h + 28}" class="plot-axis" text-anchor="middle">{h(fmt(x_value, 0))}</text>')
+    for idx in range(4):
+        y = top + plot_h * idx / 3
+        y_value = y_max - (y_max - y_min) * idx / 3
+        grid.append(f'<line x1="{left}" y1="{y:.1f}" x2="{left + plot_w}" y2="{y:.1f}" class="plot-grid"/>')
+        grid.append(f'<text x="{left - 12}" y="{y + 4:.1f}" class="plot-axis" text-anchor="end">{h(fmt(y_value, 2))}</text>')
+    point_markup = []
+    for index, (exp, title, cost, value) in enumerate(sorted(points)):
+        x = left + (cost - x_min) / (x_max - x_min) * plot_w
+        y = top + (y_max - value) / (y_max - y_min) * plot_h
+        color = palette(index)
+        point_markup.append(
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="11" fill="{color}"/>'
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="21" fill="{color}" opacity="0.14"/>'
+            f'<text x="{x + 14:.1f}" y="{y - 12:.1f}" class="plot-label tiny">{h(exp.replace("task4_", ""))}</text>'
+            f'<text x="{x + 14:.1f}" y="{y + 4:.1f}" class="plot-muted tiny">{h(fmt(value))} CPI</text>'
+        )
+    return f"""
+    <svg class="plot-svg" viewBox="0 0 {width} {height}" role="img" aria-label="Custo arquitetural contra CPI medio das customizacoes">
+      <title>Custo arquitetural contra CPI medio das customizacoes</title>
+      {''.join(grid)}
+      {''.join(point_markup)}
+      <text x="18" y="28" class="plot-axis">CPI medio</text>
+      <text x="{left + plot_w / 2}" y="{height - 12}" class="plot-axis" text-anchor="middle">indice de custo arquitetural simples</text>
+    </svg>
+    """
+
+
+def benchmark_story_cards(results: dict[str, Any], grouped: dict[str, list[dict[str, Any]]]) -> str:
+    completed = completed_cpi_runs(results.get("runs", []))
+    if not completed:
+        return chart_empty("As cartas por benchmark aparecem quando ha runs completos com CPI.")
+
+    runs_by_benchmark: dict[str, list[dict[str, Any]]] = {}
+    for run in completed:
+        runs_by_benchmark.setdefault(run["benchmark"], []).append(run)
+
+    cards = []
+    for benchmark in sorted(results.get("benchmarks", {})):
+        bench = results["benchmarks"][benchmark]
+        runs = runs_by_benchmark.get(benchmark, [])
+        if not runs:
+            continue
+        best = min(runs, key=lambda run: cpi(run) or math.inf)
+        task_values = []
+        for task in TASK_ORDER:
+            task_runs = [run for run in runs if run.get("task") == task]
+            best_task = min(task_runs, key=lambda run: cpi(run) or math.inf) if task_runs else None
+            if best_task and cpi(best_task) is not None:
+                task_values.append((task.replace("Tarefa ", "T"), cpi(best_task), best_task["experiment"]))
+        max_task_cpi = max((value for _, value, _ in task_values if value is not None), default=1.0)
+        bars = []
+        for index, (task, value, experiment) in enumerate(task_values):
+            width_pct = max(5.0, (value or 0.0) / max_task_cpi * 100)
+            bars.append(
+                f'<div class="mini-bar-row"><span>{h(task)}</span><i style="--w:{width_pct:.1f}%;--bar:{palette(index)}"></i>'
+                f'<b>{h(fmt(value))}</b><em>{h(experiment.replace("task", "t"))}</em></div>'
+            )
+        ratio = load_store_ratio(bench)
+        cards.append(
+            f"""
+            <article class="bench-story">
+              <div class="bench-story-top"><strong>{h(benchmark)}</strong><span>{h(bench.get('family'))}</span></div>
+              <div class="bench-kpi"><span>melhor CPI</span><b>{h(fmt(cpi(best)))}</b></div>
+              <p>Vencedor: <code>{h(best['experiment'])}</code></p>
+              <div class="bench-meta"><span>Entrada: {h(bench.get('input'))}</span><span>Load/store: {h(pct(ratio))}</span></div>
+              <div class="mini-bars">{''.join(bars)}</div>
+            </article>
+            """
+        )
+    return f'<div class="bench-story-grid">{"".join(cards)}</div>'
+
+
+def visuals_section(results: dict[str, Any], grouped: dict[str, list[dict[str, Any]]]) -> str:
+    cards = [
+        chart_card(
+            "Ranking de CPI por benchmark",
+            "cross-benchmark",
+            best_cpi_chart(results),
+            "Cada barra usa o menor CPI observado para aquele benchmark em qualquer configuracao completa.",
+        ),
+        chart_card(
+            "Mix de memoria vs CPI",
+            "workload fingerprint",
+            workload_scatter_chart(results),
+            "A posicao horizontal vem do percentual load/store do PDF; a vertical usa o melhor CPI medido.",
+        ),
+        chart_card(
+            "Largura: in-order contra out-of-order",
+            "Tarefa 1",
+            task1_width_visual(grouped.get("Tarefa 1", [])),
+            "As curvas mostram a media entre benchmarks; pontos mais baixos indicam menor CPI.",
+        ),
+        chart_card(
+            "Tamanho da janela RUU",
+            "Tarefa 2",
+            task2_window_visual(grouped.get("Tarefa 2", [])),
+            "Se a curva achata, aumentar a janela deixou de comprar desempenho no conjunto medido.",
+        ),
+        chart_card(
+            "Custo dos previsores",
+            "Tarefa 3",
+            predictor_overhead_chart(grouped.get("Tarefa 3", [])),
+            "Overhead e calculado contra o previsor perfect do mesmo benchmark antes da media.",
+        ),
+        chart_card(
+            "Customizacao: custo contra CPI",
+            "Tarefa 4",
+            task4_cost_scatter_chart(grouped.get("Tarefa 4", [])),
+            "O canto inferior esquerdo representa o melhor compromisso visual: baixo custo e baixo CPI.",
+        ),
+    ]
+    return f"""
+    <section class="panel visual-panel" id="visuals">
+      <div class="section-heading"><span>Visualizacoes</span><h2>Comparacoes Autoexplicativas</h2></div>
+      <p class="visual-lede">Esta secao transforma os resultados brutos em graficos estaticos: comparacoes entre benchmarks, curvas internas por tarefa e cartas compactas que resumem o comportamento de cada carga. Em todos os graficos de CPI, menor e melhor.</p>
+      <div class="plot-card-grid">{''.join(cards)}</div>
+      <div class="section-heading mini-heading"><span>Dentro de cada benchmark</span><h2>Cartas de leitura rapida</h2></div>
+      {benchmark_story_cards(results, grouped)}
+    </section>
+    """
+
+
 def methodology_section(results: dict[str, Any]) -> str:
     command = (
         "python3 scripts/run_experiments.py "
@@ -601,16 +1052,92 @@ td small { color: var(--muted); }
 .status.planned { color: var(--ufpel-blue); background: var(--ufpel-blue-soft); }
 .analysis-block { padding: 18px; margin: 16px 0; box-shadow: none; }
 .analysis-block h3 { margin-top: 0; color: var(--ufpel-blue-dark); }
+.visual-panel {
+  position: relative;
+  overflow: hidden;
+  color: #dcecff;
+  border: 0;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(27, 215, 255, .28), transparent 28%),
+    radial-gradient(circle at 88% 18%, rgba(246, 195, 67, .24), transparent 24%),
+    linear-gradient(135deg, #06182b 0%, #082948 54%, #061827 100%);
+  box-shadow: 0 28px 90px rgba(6, 24, 43, .28);
+}
+.visual-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(180deg, rgba(0,0,0,.9), transparent 72%);
+}
+.visual-panel > * { position: relative; z-index: 1; }
+.visual-panel .section-heading span { color: #65dcff; }
+.visual-panel .section-heading h2 { color: #fff; text-shadow: 0 0 32px rgba(27, 215, 255, .2); }
+.visual-lede { max-width: 980px; margin: -6px 0 24px; color: rgba(220, 236, 255, .78); font-size: 1.05rem; }
+.plot-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.plot-card {
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid rgba(143, 206, 255, .22);
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255,255,255,.105), rgba(255,255,255,.045));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 24px 60px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(18px);
+}
+.plot-card-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.plot-card-head span { color: #65dcff; font-size: .72rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+.plot-card-head h3 { max-width: 680px; margin: 0; color: #fff; font-size: clamp(1.08rem, 2vw, 1.45rem); letter-spacing: -.03em; }
+.plot-note { margin: 12px 0 0; color: rgba(220, 236, 255, .72); font-size: .92rem; }
+.plot-svg { display: block; width: 100%; height: auto; overflow: visible; border-radius: 18px; background: rgba(2, 12, 24, .28); }
+.plot-svg.tall { min-height: 390px; }
+.plot-svg.compact { min-height: 240px; }
+.plot-grid { stroke: rgba(196, 226, 255, .16); stroke-width: 1; stroke-dasharray: 5 8; }
+.plot-zero { stroke: rgba(246, 195, 67, .72); stroke-width: 2; stroke-dasharray: 4 5; }
+.plot-axis, .plot-muted { fill: rgba(220, 236, 255, .62); font-size: 13px; font-weight: 700; }
+.plot-label { fill: #f7fbff; font-size: 14px; font-weight: 900; }
+.plot-label.tiny, .plot-muted.tiny { font-size: 12px; }
+.plot-value { fill: #fff; font-size: 13px; font-weight: 900; }
+.plot-track { fill: rgba(255, 255, 255, .08); }
+.plot-empty { display: grid; min-height: 220px; place-items: center; border: 1px dashed rgba(143, 206, 255, .28); border-radius: 18px; color: rgba(220, 236, 255, .72); text-align: center; }
+.mini-heading { margin-top: 28px; }
+.bench-story-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.bench-story {
+  padding: 16px;
+  border: 1px solid rgba(143, 206, 255, .2);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .075);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+.bench-story-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bench-story-top strong { color: #fff; font-size: 1.1rem; }
+.bench-story-top span { color: #65dcff; font-weight: 900; text-transform: uppercase; }
+.bench-kpi { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 6px; }
+.bench-kpi span { color: rgba(220, 236, 255, .65); font-size: .78rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.bench-kpi b { color: var(--ufpel-gold); font-size: 2rem; line-height: 1; }
+.bench-story p { margin: 0 0 10px; color: rgba(220, 236, 255, .78); }
+.bench-story code { color: #fff; }
+.bench-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.bench-meta span { border-radius: 999px; padding: 5px 8px; color: rgba(220, 236, 255, .76); background: rgba(255,255,255,.08); font-size: .8rem; }
+.mini-bars { display: grid; gap: 8px; }
+.mini-bar-row { display: grid; grid-template-columns: 32px minmax(70px, 1fr) 56px; gap: 8px; align-items: center; color: rgba(220, 236, 255, .82); font-size: .82rem; }
+.mini-bar-row i { position: relative; height: 9px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.mini-bar-row i::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: inherit; background: var(--bar); box-shadow: 0 0 18px var(--bar); }
+.mini-bar-row b { color: #fff; text-align: right; font-variant-numeric: tabular-nums; }
+.mini-bar-row em { grid-column: 2 / 4; color: rgba(220, 236, 255, .52); font-size: .72rem; font-style: normal; }
 .conclusions-body h3, .conclusions-body h4 { color: var(--ufpel-blue-dark); }
 .conclusions-body ul { padding-left: 22px; }
 .conclusions-body li { margin: 6px 0; }
 footer { padding: 28px clamp(20px, 5vw, 72px); color: var(--muted); border-top: 1px solid var(--line); background: #fff; }
-@media (max-width: 1100px) { .cards, .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .cards, .task-grid, .plot-card-grid, .bench-story-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) {
   .hero { padding-top: 34px; }
-  .cards, .task-grid { grid-template-columns: 1fr; }
+  .cards, .task-grid, .plot-card-grid, .bench-story-grid { grid-template-columns: 1fr; }
   main { width: min(100% - 20px, 1480px); }
   th, td { padding: 10px; }
+  .plot-card { padding: 14px; border-radius: 20px; }
+  .plot-card-head { display: block; }
 }
     """
 
@@ -646,6 +1173,7 @@ def build_html(results: dict[str, Any], report: dict[str, Any]) -> str:
     <a href="#tasks">Tarefas</a>
     <a href="#benchmarks">Benchmarks</a>
     <a href="#experiments">Experimentos</a>
+    <a href="#visuals">Visualizacoes</a>
     <a href="#analysis">Analise</a>
     <a href="#conclusions">Conclusoes</a>
     <a href="#methodology">Reprodutibilidade</a>
@@ -655,6 +1183,7 @@ def build_html(results: dict[str, Any], report: dict[str, Any]) -> str:
     {task_intro_sections(report)}
     {benchmark_section(results)}
     {experiments_section(results)}
+    {visuals_section(results, grouped)}
     {analysis_section(grouped)}
     {conclusions_section()}
     {results_section(grouped)}

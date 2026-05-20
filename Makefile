@@ -5,7 +5,7 @@ EXPERIMENTS ?= smoke
 MAX_INST ?= 100000
 TIMEOUT_SEC ?= 0
 
-.PHONY: docker-build docker-shell run report pages smoke clean-results
+.PHONY: docker-build docker-shell run report validate-site pages smoke clean-results
 
 docker-build:
 	docker build -t $(IMAGE) .
@@ -19,7 +19,10 @@ run:
 report:
 	python3 scripts/generate_report.py --results "$(RESULTS)" --output site
 
-pages: report
+validate-site:
+	python3 scripts/validate_site.py --site site --results "$(RESULTS)"
+
+pages: report validate-site
 
 smoke: docker-build
 	docker run --rm -v "$(PWD):/workspace" -w /workspace $(IMAGE) python3 scripts/run_experiments.py --benchmarks quick --experiment-set smoke --max-instructions 100000 --timeout-sec 300 --output results/smoke

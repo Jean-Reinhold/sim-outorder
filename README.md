@@ -132,6 +132,8 @@ site/data/results.csv
 site/data/runs/...
 ```
 
+The generated page includes a `Visualizacoes` section with static SVG plots for cross-benchmark CPI ranking, load/store mix versus CPI, per-task trends, branch-predictor overhead, and custom processor cost/performance comparisons.
+
 Do not manually edit files in `site/`. Edit `experiments/*.json`, rerun experiments, and regenerate the report.
 
 ## GitHub Actions And Pages
@@ -139,11 +141,15 @@ Do not manually edit files in `site/`. Edit `experiments/*.json`, rerun experime
 The workflow at `.github/workflows/experiments.yml` does this automatically:
 
 ```text
-1. Build the Docker image.
-2. Run `scripts/run_experiments.py` inside Docker.
-3. Generate the static report with `scripts/generate_report.py`.
-4. Upload results as a workflow artifact.
-5. Deploy `site/` to GitHub Pages on `main` or manual runs.
+1. Resolve the selected benchmark set into a GitHub Actions matrix.
+2. Warm the Docker Buildx layer cache for the SimpleScalar image.
+3. Run one benchmark per matrix job so benchmark shards execute in parallel.
+4. Upload each shard as an artifact.
+5. Merge shards with `scripts/merge_results.py`.
+6. Generate the static report with `scripts/generate_report.py`.
+7. Validate the generated website with `scripts/validate_site.py`.
+8. Upload results as a workflow artifact.
+9. Deploy `site/` to GitHub Pages on `main` or manual runs.
 ```
 
 Enable Pages in the repository settings:
