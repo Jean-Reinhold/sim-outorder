@@ -23,7 +23,8 @@ experiments/report.json            Report title, task descriptions, and question
 scripts/run_experiments.py         Only supported experiment runner
 scripts/generate_report.py         Only supported static report generator
 .github/workflows/experiments.yml  CI and Pages deployment workflow
-.agents/experiment-analyst.md      Agentic task for interpreting measured results
+.opencode/agents/experiment-analyst.md       OpenCode subagent for interpreting measured results
+.opencode/commands/analyze-experiments.md    OpenCode slash command for the analysis workflow
 reports/conclusions.md             Agent-authored conclusions embedded in the HTML report
 ```
 
@@ -41,7 +42,7 @@ The assignment PDF says `res:memports`, but the simulator option is `res:memport
 
 Keep reports reproducible. If a table or analysis is needed in the HTML report, derive it from `results.json`; do not hard-code measured values.
 
-Conclusion writing is intentionally agentic. Use `.agents/experiment-analyst.md` to guide a human/AI analysis pass that runs the scripts, reads `results.json`/`results.csv`, inspects logs, and updates `reports/conclusions.md`. Do not replace that reasoning pass with hard-coded scripted conclusions.
+Conclusion writing is intentionally agentic. Use the OpenCode command `/analyze-experiments`, backed by `.opencode/agents/experiment-analyst.md`, to guide a human/AI analysis pass that runs the scripts, reads `results.json`/`results.csv`, inspects logs, and updates `reports/conclusions.md`. Do not replace that reasoning pass with hard-coded scripted conclusions.
 
 ## Validation
 

@@ -10,7 +10,7 @@
 
 ## Cross-Benchmark Summary
 
-- Run `.agents/experiment-analyst.md` after the experiment matrix completes.
+- Run `/analyze-experiments` after the experiment matrix completes.
 - Replace this placeholder with measured conclusions derived from `results/<run>/results.json` and `results/<run>/results.csv`.
 
 ## Caveats
