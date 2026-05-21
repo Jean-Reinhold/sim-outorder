@@ -13,12 +13,15 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_SECTIONS = [
     'id="overview"',
+    'id="executive-summary"',
     'id="tasks"',
     'id="benchmarks"',
     'id="experiments"',
     'id="visuals"',
     'id="analysis"',
     'id="conclusions"',
+    'id="downloads"',
+    'id="provenance"',
     'id="methodology"',
 ]
 
@@ -42,9 +45,10 @@ def validate(site: Path, results_dir: Path) -> None:
     style = site / "assets" / "style.css"
     site_json = site / "data" / "results.json"
     site_csv = site / "data" / "results.csv"
+    run_manifest = site / "data" / "run-files.json"
     source_json = results_dir / "results.json"
 
-    for path in [index, style, site_json, site_csv, source_json, site / ".nojekyll"]:
+    for path in [index, style, site_json, site_csv, run_manifest, source_json, site / ".nojekyll"]:
         if not path.exists():
             fail(f"missing required file {path}")
 
@@ -52,7 +56,7 @@ def validate(site: Path, results_dir: Path) -> None:
     for marker in REQUIRED_SECTIONS:
         if marker not in html:
             fail(f"missing report section marker {marker}")
-    for asset in ['href="assets/style.css"', 'href="data/results.json"', 'href="data/results.csv"']:
+    for asset in ['href="assets/style.css"', 'href="data/results.json"', 'href="data/results.csv"', 'href="data/run-files.json"']:
         if asset not in html:
             fail(f"missing report link {asset}")
 

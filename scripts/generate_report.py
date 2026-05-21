@@ -420,14 +420,148 @@ def chart_empty(message: str) -> str:
     return f"<div class=\"plot-empty\">{h(message)}</div>"
 
 
-def chart_card(title: str, subtitle: str, body: str, note: str) -> str:
+def insight_badges(insights: list[str]) -> str:
+    if not insights:
+        return ""
+    return '<div class="insight-badges">' + "".join(f"<span>{h(insight)}</span>" for insight in insights) + "</div>"
+
+
+def chart_card(title: str, subtitle: str, body: str, note: str, insights: list[str] | None = None) -> str:
     return f"""
     <article class="plot-card">
       <div class="plot-card-head"><span>{h(subtitle)}</span><h3>{h(title)}</h3></div>
+      {insight_badges(insights or [])}
       {body}
       <p class="plot-note">{h(note)}</p>
     </article>
     """
+
+
+def cpi_values(runs: list[dict[str, Any]]) -> list[float]:
+    return [value for run in runs if (value := cpi(run)) is not None]
+
+
+def average_cpi(runs: list[dict[str, Any]]) -> float | None:
+    return mean(cpi_values(completed_cpi_runs(runs)))
+
+
+def experiment_average_cpi(runs: list[dict[str, Any]]) -> dict[str, float]:
+    grouped: dict[str, list[float]] = {}
+    for run in completed_cpi_runs(runs):
+        value = cpi(run)
+        if value is not None:
+            grouped.setdefault(run["experiment"], []).append(value)
+    return {experiment: avg for experiment, values in grouped.items() if (avg := mean(values)) is not None}
+
+
+def task1_gain_at_width(runs: list[dict[str, Any]], width: int) -> float | None:
+    lookup: dict[tuple[str, str], float] = {}
+    for run in completed_cpi_runs(runs):
+        run_width, mode = width_and_mode(run)
+        value = cpi(run)
+        if run_width == width and value is not None:
+            lookup[(run["benchmark"], mode)] = value
+    gains = []
+    for benchmark in {item[0] for item in lookup}:
+        in_cpi = lookup.get((benchmark, "in-order"))
+        ooo_cpi = lookup.get((benchmark, "out-of-order"))
+        if in_cpi and ooo_cpi:
+            gains.append((in_cpi - ooo_cpi) / in_cpi * 100)
+    return mean(gains)
+
+
+def predictor_overhead_averages(runs: list[dict[str, Any]]) -> dict[str, float]:
+    perfect: dict[str, float] = {}
+    for run in completed_cpi_runs(runs):
+        value = cpi(run)
+        if predictor(run) == "perfect" and value is not None:
+            perfect[run["benchmark"]] = value
+    grouped: dict[str, list[float]] = {}
+    for run in completed_cpi_runs(runs):
+        value = cpi(run)
+        baseline = perfect.get(run["benchmark"])
+        if value is not None and baseline:
+            grouped.setdefault(predictor(run), []).append((value / baseline - 1) * 100)
+    return {name: avg for name, values in grouped.items() if (avg := mean(values)) is not None}
+
+
+def best_cpi_insights(results: dict[str, Any]) -> list[str]:
+    best_runs = best_by_benchmark(completed_cpi_runs(results.get("runs", [])))
+    if not best_runs:
+        return []
+    fastest = min(best_runs, key=lambda run: cpi(run) or math.inf)
+    slowest = max(best_runs, key=lambda run: cpi(run) or -math.inf)
+    return [f"mais rapido: {fastest['benchmark']} ({fmt(cpi(fastest))})", f"maior CPI: {slowest['benchmark']} ({fmt(cpi(slowest))})"]
+
+
+def workload_insights(results: dict[str, Any]) -> list[str]:
+    ratios = []
+    for name, bench in results.get("benchmarks", {}).items():
+        ratio = load_store_ratio(bench)
+        if ratio is not None:
+            ratios.append((name, ratio))
+    if not ratios:
+        return []
+    highest = max(ratios, key=lambda item: item[1])
+    lowest = min(ratios, key=lambda item: item[1])
+    return [f"mais load/store: {highest[0]} ({pct(highest[1])})", f"menos load/store: {lowest[0]} ({pct(lowest[1])})"]
+
+
+def task1_insights(runs: list[dict[str, Any]]) -> list[str]:
+    gain = task1_gain_at_width(runs, 8)
+    averages = experiment_average_cpi(runs)
+    if not averages:
+        return []
+    best = min(averages.items(), key=lambda item: item[1])
+    insights = [f"melhor media: {best[0].replace('task1_', '')} ({fmt(best[1])})"]
+    if gain is not None:
+        insights.append(f"OOO largura 8 reduz {pct(gain)}")
+    return insights
+
+
+def task2_insights(runs: list[dict[str, Any]]) -> list[str]:
+    grouped: dict[int, list[float]] = {}
+    for run in completed_cpi_runs(runs):
+        ruu = run.get("options", {}).get("ruu:size")
+        value = cpi(run)
+        if isinstance(ruu, int) and value is not None:
+            grouped.setdefault(ruu, []).append(value)
+    averages = {ruu: avg for ruu, values in grouped.items() if (avg := mean(values)) is not None}
+    if not averages:
+        return []
+    best = min(averages.items(), key=lambda item: item[1])
+    smallest = min(averages)
+    improvement = (averages[smallest] - best[1]) / averages[smallest] * 100 if averages[smallest] else None
+    insights = [f"melhor RUU: {best[0]} ({fmt(best[1])})"]
+    if improvement is not None:
+        insights.append(f"ganho vs menor janela: {pct(improvement)}")
+    return insights
+
+
+def predictor_insights(runs: list[dict[str, Any]]) -> list[str]:
+    overheads = predictor_overhead_averages(runs)
+    insights = []
+    if "bimod" in overheads:
+        insights.append(f"bimod fica {pct(overheads['bimod'])} acima do perfect")
+    static = [overheads[name] for name in ["taken", "nottaken"] if name in overheads]
+    if static and (avg := mean(static)) is not None:
+        insights.append(f"previsores estaticos custam {pct(avg)}")
+    return insights
+
+
+def task4_insights(runs: list[dict[str, Any]]) -> list[str]:
+    averages = experiment_average_cpi(runs)
+    if not averages:
+        return []
+    best = min(averages.items(), key=lambda item: item[1])
+    win_counts: dict[str, int] = {}
+    for run in best_by_benchmark(completed_cpi_runs(runs)):
+        win_counts[run["experiment"]] = win_counts.get(run["experiment"], 0) + 1
+    dominant = max(win_counts.items(), key=lambda item: item[1]) if win_counts else None
+    insights = [f"menor CPI medio: {best[0].replace('task4_', '')} ({fmt(best[1])})"]
+    if dominant:
+        insights.append(f"vence em {dominant[1]} benchmark(s)")
+    return insights
 
 
 def best_cpi_chart(results: dict[str, Any]) -> str:
@@ -786,36 +920,42 @@ def visuals_section(results: dict[str, Any], grouped: dict[str, list[dict[str, A
             "cross-benchmark",
             best_cpi_chart(results),
             "Cada barra usa o menor CPI observado para aquele benchmark em qualquer configuracao completa.",
+            best_cpi_insights(results),
         ),
         chart_card(
             "Mix de memoria vs CPI",
             "workload fingerprint",
             workload_scatter_chart(results),
             "A posicao horizontal vem do percentual load/store do PDF; a vertical usa o melhor CPI medido.",
+            workload_insights(results),
         ),
         chart_card(
             "Largura: in-order contra out-of-order",
             "Tarefa 1",
             task1_width_visual(grouped.get("Tarefa 1", [])),
             "As curvas mostram a media entre benchmarks; pontos mais baixos indicam menor CPI.",
+            task1_insights(grouped.get("Tarefa 1", [])),
         ),
         chart_card(
             "Tamanho da janela RUU",
             "Tarefa 2",
             task2_window_visual(grouped.get("Tarefa 2", [])),
             "Se a curva achata, aumentar a janela deixou de comprar desempenho no conjunto medido.",
+            task2_insights(grouped.get("Tarefa 2", [])),
         ),
         chart_card(
             "Custo dos previsores",
             "Tarefa 3",
             predictor_overhead_chart(grouped.get("Tarefa 3", [])),
             "Overhead e calculado contra o previsor perfect do mesmo benchmark antes da media.",
+            predictor_insights(grouped.get("Tarefa 3", [])),
         ),
         chart_card(
             "Customizacao: custo contra CPI",
             "Tarefa 4",
             task4_cost_scatter_chart(grouped.get("Tarefa 4", [])),
             "O canto inferior esquerdo representa o melhor compromisso visual: baixo custo e baixo CPI.",
+            task4_insights(grouped.get("Tarefa 4", [])),
         ),
     ]
     return f"""
@@ -825,6 +965,106 @@ def visuals_section(results: dict[str, Any], grouped: dict[str, list[dict[str, A
       <div class="plot-card-grid">{''.join(cards)}</div>
       <div class="section-heading mini-heading"><span>Dentro de cada benchmark</span><h2>Cartas de leitura rapida</h2></div>
       {benchmark_story_cards(results, grouped)}
+    </section>
+    """
+
+
+def run_status_banner(results: dict[str, Any]) -> str:
+    cap = results.get("max_instructions")
+    status = "final" if cap == 0 else "preliminar com limite de instrucoes"
+    tone = "final" if cap == 0 else "capped"
+    completed = len([run for run in results.get("runs", []) if run.get("status") == "completed"])
+    total = len(results.get("runs", []))
+    benchmark_selection = results.get("benchmark_selection", "-")
+    experiment_selection = results.get("experiment_selection", "-")
+    cap_text = "sem limite" if cap == 0 else f"{fmt(cap)} instrucoes por run"
+    return f"""
+    <section class="run-banner {tone}" aria-label="Status do conjunto de resultados">
+      <strong>{h(status)}</strong>
+      <span>{h(completed)}/{h(total)} runs completos</span>
+      <span>benchmarks: <code>{h(benchmark_selection)}</code></span>
+      <span>experimentos: <code>{h(experiment_selection)}</code></span>
+      <span>{h(cap_text)}</span>
+    </section>
+    """
+
+
+def executive_summary_section(results: dict[str, Any], grouped: dict[str, list[dict[str, Any]]]) -> str:
+    completed = completed_cpi_runs(results.get("runs", []))
+    if not completed:
+        body = "<p>Este relatorio ainda nao possui runs completos com CPI; execute os experimentos para preencher o resumo executivo.</p>"
+    else:
+        best = min(completed, key=lambda run: cpi(run) or math.inf)
+        avg = average_cpi(results.get("runs", []))
+        task1_gain = task1_gain_at_width(grouped.get("Tarefa 1", []), 8)
+        overheads = predictor_overhead_averages(grouped.get("Tarefa 3", []))
+        custom_avg = experiment_average_cpi(grouped.get("Tarefa 4", []))
+        best_custom = min(custom_avg.items(), key=lambda item: item[1]) if custom_avg else None
+        cards = [
+            ("Melhor CPI", fmt(cpi(best)), f"{best['benchmark']} / {best['experiment']}"),
+            ("CPI medio", fmt(avg), "media de todos os runs completos"),
+            ("OOO largura 8", pct(task1_gain), "reducao media de CPI vs in-order" if task1_gain is not None else "dados insuficientes"),
+            ("Bimod vs perfect", pct(overheads.get("bimod")), "overhead medio do previsor bimodal"),
+            ("Custom vencedor", best_custom[0].replace("task4_", "") if best_custom else "-", fmt(best_custom[1]) if best_custom else "dados insuficientes"),
+        ]
+        body = '<div class="executive-grid">' + "".join(
+            f'<article><span>{h(label)}</span><strong>{h(value)}</strong><p>{h(detail)}</p></article>'
+            for label, value, detail in cards
+        ) + "</div>"
+    return f"""
+    <section class="panel" id="executive-summary">
+      <div class="section-heading"><span>Resumo Executivo</span><h2>Principais Leituras</h2></div>
+      {body}
+    </section>
+    """
+
+
+def downloads_section() -> str:
+    downloads = [
+        ("Resultados JSON", "data/results.json", "dados completos e metadados de todas as rodadas"),
+        ("Resultados CSV", "data/results.csv", "tabela plana para planilhas e scripts"),
+        ("Manifesto de runs", "data/run-files.json", "lista de configs, logs e saidas por run"),
+    ]
+    cards = "".join(
+        f'<a class="download-card" href="{h(href)}"><strong>{h(label)}</strong><span>{h(description)}</span></a>'
+        for label, href, description in downloads
+    )
+    return f"""
+    <section class="panel" id="downloads">
+      <div class="section-heading"><span>Artefatos</span><h2>Downloads Reprodutiveis</h2></div>
+      <div class="download-grid">{cards}</div>
+    </section>
+    """
+
+
+def provenance_section(results: dict[str, Any]) -> str:
+    provenance = results.get("provenance", {}) if isinstance(results.get("provenance"), dict) else {}
+    env = provenance.get("environment", {}) if isinstance(provenance.get("environment"), dict) else {}
+    github_run_url = provenance.get("github_run_url")
+    rows = [
+        ("Gerador", provenance.get("generated_by")),
+        ("Commit", provenance.get("git_commit")),
+        ("Branch", provenance.get("git_branch")),
+        ("Workflow", env.get("GITHUB_WORKFLOW")),
+        ("GitHub run", github_run_url),
+        ("Runner", " / ".join(part for part in [env.get("RUNNER_OS"), env.get("RUNNER_ARCH")] if part)),
+        ("Python", provenance.get("python_version")),
+        ("Plataforma", provenance.get("platform")),
+        ("Imagem", env.get("IMAGE_NAME")),
+        ("Shards mesclados", provenance.get("merged_shard_count")),
+    ]
+    body_rows = []
+    for label, value in rows:
+        if not value:
+            continue
+        value_html = f'<a href="{h(value)}">{h(value)}</a>' if label == "GitHub run" and isinstance(value, str) else h(value)
+        body_rows.append(f"<tr><th>{h(label)}</th><td>{value_html}</td></tr>")
+    if not body_rows:
+        return ""
+    return f"""
+    <section class="panel" id="provenance">
+      <div class="section-heading"><span>Proveniencia</span><h2>Como Rastrear Estes Numeros</h2></div>
+      <div class="table-wrap"><table class="provenance-table"><tbody>{''.join(body_rows)}</tbody></table></div>
     </section>
     """
 
@@ -1023,6 +1263,22 @@ main { width: min(1480px, calc(100% - 32px)); margin: 24px auto 64px; }
 .card span { display: block; color: var(--muted); font-size: .85rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .card strong { display: block; margin-top: 7px; color: var(--ufpel-blue-dark); font-size: clamp(1.35rem, 2.4vw, 2rem); }
 .panel { margin-top: 22px; padding: clamp(18px, 2.4vw, 30px); }
+.run-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 22px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(15, 43, 72, .07);
+}
+.run-banner strong { color: var(--ufpel-blue-dark); text-transform: uppercase; letter-spacing: .08em; }
+.run-banner span { border-radius: 999px; padding: 6px 10px; color: var(--muted); background: #f6f9fc; }
+.run-banner.capped { border-color: rgba(246, 195, 67, .58); background: linear-gradient(90deg, rgba(246,195,67,.16), #fff 38%); }
+.run-banner.final { border-color: rgba(19, 115, 51, .32); background: linear-gradient(90deg, rgba(19,115,51,.12), #fff 38%); }
 .section-heading span {
   display: inline-flex;
   color: var(--ufpel-blue);
@@ -1037,6 +1293,16 @@ main { width: min(1480px, calc(100% - 32px)); margin: 24px auto 64px; }
 .task-card span { color: var(--ufpel-gold); font-weight: 900; text-transform: uppercase; }
 .task-card h3 { margin: 8px 0; color: var(--ufpel-blue-dark); }
 .task-card ul { padding-left: 20px; margin-bottom: 0; color: var(--muted); }
+.executive-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.executive-grid article { padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(180deg, #fff, #f8fbff); }
+.executive-grid span { color: var(--muted); font-size: .76rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.executive-grid strong { display: block; margin-top: 8px; color: var(--ufpel-blue-dark); font-size: clamp(1.3rem, 2.3vw, 2rem); }
+.executive-grid p { margin: 8px 0 0; color: var(--muted); font-size: .9rem; }
+.download-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.download-card { display: block; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: 0 12px 32px rgba(15, 43, 72, .06); }
+.download-card strong { display: block; color: var(--ufpel-blue-dark); font-size: 1.08rem; }
+.download-card span { display: block; margin-top: 6px; color: var(--muted); font-weight: 500; }
+.download-card:hover { transform: translateY(-2px); text-decoration: none; box-shadow: 0 18px 42px rgba(15, 43, 72, .1); }
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; }
 table { width: 100%; border-collapse: collapse; min-width: 860px; background: var(--paper); }
 th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
@@ -1089,6 +1355,8 @@ td small { color: var(--muted); }
 .plot-card-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
 .plot-card-head span { color: #65dcff; font-size: .72rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
 .plot-card-head h3 { max-width: 680px; margin: 0; color: #fff; font-size: clamp(1.08rem, 2vw, 1.45rem); letter-spacing: -.03em; }
+.insight-badges { display: flex; flex-wrap: wrap; gap: 8px; margin: -2px 0 12px; }
+.insight-badges span { border: 1px solid rgba(101, 220, 255, .28); border-radius: 999px; padding: 5px 9px; color: #e9f8ff; background: rgba(101, 220, 255, .1); font-size: .78rem; font-weight: 800; }
 .plot-note { margin: 12px 0 0; color: rgba(220, 236, 255, .72); font-size: .92rem; }
 .plot-svg { display: block; width: 100%; height: auto; overflow: visible; border-radius: 18px; background: rgba(2, 12, 24, .28); }
 .plot-svg.tall { min-height: 390px; }
@@ -1126,18 +1394,31 @@ td small { color: var(--muted); }
 .mini-bar-row i::before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: inherit; background: var(--bar); box-shadow: 0 0 18px var(--bar); }
 .mini-bar-row b { color: #fff; text-align: right; font-variant-numeric: tabular-nums; }
 .mini-bar-row em { grid-column: 2 / 4; color: rgba(220, 236, 255, .52); font-size: .72rem; font-style: normal; }
+.provenance-table { min-width: 0; }
+.provenance-table th { width: 220px; }
 .conclusions-body h3, .conclusions-body h4 { color: var(--ufpel-blue-dark); }
 .conclusions-body ul { padding-left: 22px; }
 .conclusions-body li { margin: 6px 0; }
 footer { padding: 28px clamp(20px, 5vw, 72px); color: var(--muted); border-top: 1px solid var(--line); background: #fff; }
-@media (max-width: 1100px) { .cards, .task-grid, .plot-card-grid, .bench-story-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .cards, .task-grid, .plot-card-grid, .bench-story-grid, .executive-grid, .download-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) {
   .hero { padding-top: 34px; }
-  .cards, .task-grid, .plot-card-grid, .bench-story-grid { grid-template-columns: 1fr; }
+  .cards, .task-grid, .plot-card-grid, .bench-story-grid, .executive-grid, .download-grid { grid-template-columns: 1fr; }
   main { width: min(100% - 20px, 1480px); }
   th, td { padding: 10px; }
   .plot-card { padding: 14px; border-radius: 20px; }
   .plot-card-head { display: block; }
+}
+@media print {
+  body { background: #fff; color: #000; }
+  nav, .hero::after { display: none; }
+  .hero, .visual-panel { color: #000; background: #fff; }
+  .visual-panel .section-heading h2, .plot-card-head h3, .bench-story-top strong { color: #000; text-shadow: none; }
+  .plot-card, .bench-story, .card, .panel, .task-card, .analysis-block { break-inside: avoid; box-shadow: none; }
+  .plot-svg { background: #fff; }
+  .plot-axis, .plot-muted, .plot-label, .plot-value { fill: #222; }
+  .plot-grid { stroke: #ddd; }
+  a::after { content: " (" attr(href) ")"; font-weight: 400; }
 }
     """
 
@@ -1170,22 +1451,29 @@ def build_html(results: dict[str, Any], report: dict[str, Any]) -> str:
   </header>
   <nav aria-label="Navegacao do relatorio">
     <a href="#overview">Resumo</a>
+    <a href="#executive-summary">Resumo Executivo</a>
     <a href="#tasks">Tarefas</a>
     <a href="#benchmarks">Benchmarks</a>
     <a href="#experiments">Experimentos</a>
     <a href="#visuals">Visualizacoes</a>
     <a href="#analysis">Analise</a>
     <a href="#conclusions">Conclusoes</a>
+    <a href="#downloads">Downloads</a>
+    <a href="#provenance">Proveniencia</a>
     <a href="#methodology">Reprodutibilidade</a>
   </nav>
   <main>
+    {run_status_banner(results)}
     <section id="overview" class="cards">{summary_cards(results)}</section>
+    {executive_summary_section(results, grouped)}
     {task_intro_sections(report)}
     {benchmark_section(results)}
     {experiments_section(results)}
     {visuals_section(results, grouped)}
     {analysis_section(grouped)}
     {conclusions_section()}
+    {downloads_section()}
+    {provenance_section(results)}
     {results_section(grouped)}
     {methodology_section(results)}
   </main>
@@ -1207,6 +1495,11 @@ def copy_data(results_dir: Path, output: Path) -> None:
     runs_source = results_dir / "runs"
     if runs_source.exists():
         shutil.copytree(runs_source, data_dir / "runs", dirs_exist_ok=True)
+    manifest = []
+    copied_runs = data_dir / "runs"
+    if copied_runs.exists():
+        manifest = [str(path.relative_to(data_dir)) for path in sorted(copied_runs.rglob("*")) if path.is_file()]
+    (data_dir / "run-files.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def build_parser() -> argparse.ArgumentParser:

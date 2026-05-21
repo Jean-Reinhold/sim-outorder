@@ -1,5 +1,8 @@
 # Sim-OutOrder Experiments
 
+[![Experiments And Pages](https://github.com/Jean-Reinhold/sim-outorder/actions/workflows/experiments.yml/badge.svg)](https://github.com/Jean-Reinhold/sim-outorder/actions/workflows/experiments.yml)
+[![Report](https://img.shields.io/badge/report-GitHub%20Pages-003d73)](https://jean-reinhold.github.io/sim-outorder/)
+
 Reproducible SimpleScalar `sim-outorder` setup for the UFPel 2026/1 advanced computer architecture assignment.
 
 The repository is organized so experiments can run locally in Docker and in GitHub Actions. The same structured results are then converted into a UFPel-themed static HTML report for GitHub Pages.
@@ -18,6 +21,8 @@ site/                               Generated GitHub Pages site, ignored by git
 .github/workflows/experiments.yml   CI and Pages workflow
 Dockerfile                          Reproducible SimpleScalar runtime image
 compose.yaml                        Local smoke-run convenience service
+CONTRIBUTING.md                     Metadata and validation contribution guide
+docs/                               Architecture and reproducibility notes
 ```
 
 ## Docker Setup
@@ -50,6 +55,14 @@ Run a selected benchmark group and experiment set:
 make docker-build
 make run BENCHMARKS=andressa_eduarda EXPERIMENTS=assignment MAX_INST=100000 RESULTS=results/andressa_eduarda
 make report RESULTS=results/andressa_eduarda
+```
+
+Use local parallel workers when running multiple benchmarks/configurations on a machine with spare cores:
+
+```sh
+make run BENCHMARKS=short EXPERIMENTS=assignment MAX_INST=100000 JOBS=4 RESULTS=results/short-parallel
+make report RESULTS=results/short-parallel
+make validate-site RESULTS=results/short-parallel
 ```
 
 Use `MAX_INST=0` only when you want full benchmark execution with no instruction cap:
@@ -132,7 +145,7 @@ site/data/results.csv
 site/data/runs/...
 ```
 
-The generated page includes a `Visualizacoes` section with static SVG plots for cross-benchmark CPI ranking, load/store mix versus CPI, per-task trends, branch-predictor overhead, and custom processor cost/performance comparisons.
+The generated page includes a preliminary/final run banner, an executive summary, a `Visualizacoes` section with static SVG plots, reproducible download links, and a provenance section with commit/workflow/runtime metadata when available.
 
 Do not manually edit files in `site/`. Edit `experiments/*.json`, rerun experiments, and regenerate the report.
 
@@ -146,11 +159,14 @@ The workflow at `.github/workflows/experiments.yml` does this automatically:
 3. Run one benchmark per matrix job.
 4. Upload each shard as an artifact.
 5. Merge shards with `scripts/merge_results.py`.
-6. Generate the static report with `scripts/generate_report.py`.
-7. Validate the generated website with `scripts/validate_site.py`.
-8. Upload results as a workflow artifact.
-9. Deploy `site/` to GitHub Pages on `main` or manual runs.
+6. Validate merged results with `scripts/validate_results.py`.
+7. Generate the static report with `scripts/generate_report.py`.
+8. Validate the generated website with `scripts/validate_site.py`.
+9. Upload results as a workflow artifact.
+10. Deploy `site/` to GitHub Pages on `main` or manual runs.
 ```
+
+Before the matrix starts, a quality job compiles every Python script, validates experiment metadata, runs unit tests, and performs a dry-run report/site validation. Manual workflow runs can use `shard_mode=benchmark_task` to split long final runs more finely by benchmark and assignment task.
 
 Enable Pages in the repository settings:
 
@@ -165,9 +181,11 @@ BENCHMARK_SET=all
 EXPERIMENT_SET=assignment
 MAX_INSTRUCTIONS=100000
 TIMEOUT_SEC=1800
+RUN_JOBS=2
+SHARD_MODE=benchmark
 ```
 
-For the final report, run the workflow manually and set `MAX_INSTRUCTIONS=0` if the full run time is acceptable.
+For the final report, run the workflow manually and set `MAX_INSTRUCTIONS=0` if the full run time is acceptable. Use `SHARD_MODE=benchmark_task` for finer-grained parallelism on long uncapped runs.
 
 ## Agentic Conclusions
 
@@ -212,3 +230,12 @@ The benchmark metadata in `experiments/benchmarks.json` was seeded from the supp
 ## Notes
 
 SimpleScalar is licensed for academic and non-commercial use. Keep the Docker image and generated artifacts for this course/research context unless you have the rights to use it otherwise.
+
+Additional project notes:
+
+```text
+docs/architecture.md       Pipeline and CI/report architecture
+docs/reproducibility.md    Local, capped, final, and release-run guidance
+CONTRIBUTING.md            How to update metadata and validate changes
+CHANGELOG.md               Human-readable change history
+```

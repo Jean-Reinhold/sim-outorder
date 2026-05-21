@@ -22,9 +22,29 @@ on:
         description: Timeout per simulator run, use 0 for no timeout
         required: true
         default: "1800"
+      worker_jobs:
+        description: Parallel simulator workers inside each shard
+        required: true
+        default: "2"
+      shard_mode:
+        description: Parallel sharding mode
+        required: true
+        default: benchmark
+        type: choice
+        options:
+          - benchmark
+          - benchmark_task
+      release_tag:
+        description: Optional Git tag/release name for preserving a final report artifact
+        required: false
+        default: ""
+      release_title:
+        description: Optional GitHub Release title
+        required: false
+        default: ""
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -39,6 +59,10 @@ env:
   EXPERIMENT_SET: ${{ github.event.inputs.experiment_set || vars.EXPERIMENT_SET || 'assignment' }}
   MAX_INSTRUCTIONS: ${{ github.event.inputs.max_instructions || vars.MAX_INSTRUCTIONS || '100000' }}
   TIMEOUT_SEC: ${{ github.event.inputs.timeout_sec || vars.TIMEOUT_SEC || '1800' }}
+  RUN_JOBS: ${{ github.event.inputs.worker_jobs || vars.RUN_JOBS || '2' }}
+  SHARD_MODE: ${{ github.event.inputs.shard_mode || vars.SHARD_MODE || 'benchmark' }}
+  RELEASE_TAG: ${{ github.event.inputs.release_tag || '' }}
+  RELEASE_TITLE: ${{ github.event.inputs.release_title || github.event.inputs.release_tag || '' }}
   RESULTS_DIR: results/ci
 
 jobs:
@@ -47,23 +71,65 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       benchmark_count: ${{ steps.matrix.outputs.count }}
+      shard_count: ${{ steps.matrix.outputs.shards }}
       benchmarks: ${{ steps.matrix.outputs.benchmarks }}
+      experiments: ${{ steps.matrix.outputs.experiments }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Build benchmark matrix
         id: matrix
-        run: python3 scripts/benchmark_matrix.py --benchmarks "$BENCHMARK_SET" --github-output >> "$GITHUB_OUTPUT"
+        run: |
+          python3 scripts/benchmark_matrix.py \
+            --benchmarks "$BENCHMARK_SET" \
+            --experiment-set "$EXPERIMENT_SET" \
+            --mode "$SHARD_MODE" \
+            --github-output >> "$GITHUB_OUTPUT"
+
+      - name: Write workflow summary
+        run: |
+          {
+            echo "## Experiment Plan"
+            echo "- Benchmark selection: \`$BENCHMARK_SET\`"
+            echo "- Experiment selection: \`$EXPERIMENT_SET\`"
+            echo "- Shard mode: \`$SHARD_MODE\`"
+            echo "- Benchmarks: ${{ steps.matrix.outputs.count }}"
+            echo "- Shards: ${{ steps.matrix.outputs.shards }}"
+            echo "- Workers per shard: \`$RUN_JOBS\`"
+            echo "- Instruction cap: \`$MAX_INSTRUCTIONS\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Compile Python scripts
+        run: python3 -m py_compile scripts/*.py
+
+      - name: Validate experiment metadata
+        run: python3 scripts/validate_experiments.py
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests
+
+      - name: Dry-run report validation
+        run: |
+          python3 scripts/run_experiments.py --benchmarks short --experiment-set smoke --dry-run --output results/quality-dry-run
+          python3 scripts/validate_results.py --results results/quality-dry-run
+          python3 scripts/generate_report.py --results results/quality-dry-run --output site
+          python3 scripts/validate_site.py --site site --results results/quality-dry-run
 
   experiments:
-    needs: plan
+    needs: [plan, quality]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
-      SHARD_RESULTS_DIR: results/shards/${{ matrix.benchmark }}
+      SHARD_RESULTS_DIR: results/shards/${{ matrix.shard }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -76,19 +142,31 @@ jobs:
           docker run --rm \
             -v "$PWD:/workspace" \
             -w /workspace \
+            -e GITHUB_ACTIONS \
+            -e GITHUB_SERVER_URL \
+            -e GITHUB_REPOSITORY \
+            -e GITHUB_RUN_ID \
+            -e GITHUB_RUN_ATTEMPT \
+            -e GITHUB_WORKFLOW \
+            -e GITHUB_REF_NAME \
+            -e GITHUB_SHA \
+            -e RUNNER_OS \
+            -e RUNNER_ARCH \
+            -e IMAGE_NAME="$IMAGE_NAME" \
             "$IMAGE_NAME" \
             python3 scripts/run_experiments.py \
               --benchmarks "${{ matrix.benchmark }}" \
-              --experiment-set "$EXPERIMENT_SET" \
+              --experiment-set "${{ matrix.experiment_selection }}" \
               --max-instructions "$MAX_INSTRUCTIONS" \
               --timeout-sec "$TIMEOUT_SEC" \
+              --jobs "$RUN_JOBS" \
               --output "$SHARD_RESULTS_DIR"
 
       - name: Upload shard results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sim-results-${{ matrix.benchmark }}
+          name: sim-results-${{ matrix.shard }}
           path: |
             ${{ env.SHARD_RESULTS_DIR }}/results.json
             ${{ env.SHARD_RESULTS_DIR }}/results.csv
@@ -116,11 +194,31 @@ jobs:
             --benchmark-selection "$BENCHMARK_SET" \
             --experiment-selection "$EXPERIMENT_SET"
 
+      - name: Validate merged results
+        run: python3 scripts/validate_results.py --results "$RESULTS_DIR"
+
       - name: Generate static report
         run: python3 scripts/generate_report.py --results "$RESULTS_DIR" --output site
 
       - name: Validate generated site
         run: python3 scripts/validate_site.py --site site --results "$RESULTS_DIR"
+
+      - name: Write report summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("results/ci/results.json").read_text())
+          runs = data["runs"]
+          completed = [run for run in runs if run["status"] == "completed"]
+          cpis = [run["stats"].get("sim_CPI") for run in completed if isinstance(run.get("stats", {}).get("sim_CPI"), (int, float))]
+          print("## Report Validation")
+          print(f"- Completed runs: {len(completed)}/{len(runs)}")
+          print(f"- Best CPI: {min(cpis):.4f}" if cpis else "- Best CPI: n/a")
+          print(f"- Average CPI: {sum(cpis) / len(cpis):.4f}" if cpis else "- Average CPI: n/a")
+          print("- Generated site: validated")
+          PY
 
       - name: Upload structured results
         uses: actions/upload-artifact@v4
@@ -129,6 +227,25 @@ jobs:
           path: |
             ${{ env.RESULTS_DIR }}
             site
+
+      - name: Package final release assets
+        if: github.event_name == 'workflow_dispatch' && env.RELEASE_TAG != ''
+        run: |
+          tar -czf sim-outorder-site.tar.gz -C site .
+          cp "$RESULTS_DIR/results.json" sim-outorder-results.json
+          cp "$RESULTS_DIR/results.csv" sim-outorder-results.csv
+
+      - name: Create GitHub Release
+        if: github.event_name == 'workflow_dispatch' && env.RELEASE_TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            sim-outorder-site.tar.gz \
+            sim-outorder-results.json \
+            sim-outorder-results.csv \
+            --title "${RELEASE_TITLE:-$RELEASE_TAG}" \
+            --notes "Validated sim-outorder report generated from $GITHUB_SHA. Benchmark set: $BENCHMARK_SET. Experiment set: $EXPERIMENT_SET. Max instructions: $MAX_INSTRUCTIONS."
 
       - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'

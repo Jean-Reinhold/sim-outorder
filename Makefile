@@ -4,8 +4,9 @@ BENCHMARKS ?= quick
 EXPERIMENTS ?= smoke
 MAX_INST ?= 100000
 TIMEOUT_SEC ?= 0
+JOBS ?= 1
 
-.PHONY: docker-build docker-shell run report validate-site pages smoke clean-results
+.PHONY: docker-build docker-shell run report validate-site validate-metadata test pages smoke clean-results
 
 docker-build:
 	docker build -t $(IMAGE) .
@@ -14,13 +15,19 @@ docker-shell:
 	docker run --rm -it -v "$(PWD):/workspace" -w /workspace $(IMAGE) bash
 
 run:
-	docker run --rm -v "$(PWD):/workspace" -w /workspace $(IMAGE) python3 scripts/run_experiments.py --benchmarks "$(BENCHMARKS)" --experiment-set "$(EXPERIMENTS)" --max-instructions "$(MAX_INST)" --timeout-sec "$(TIMEOUT_SEC)" --output "$(RESULTS)"
+	docker run --rm -v "$(PWD):/workspace" -w /workspace $(IMAGE) python3 scripts/run_experiments.py --benchmarks "$(BENCHMARKS)" --experiment-set "$(EXPERIMENTS)" --max-instructions "$(MAX_INST)" --timeout-sec "$(TIMEOUT_SEC)" --jobs "$(JOBS)" --output "$(RESULTS)"
 
 report:
 	python3 scripts/generate_report.py --results "$(RESULTS)" --output site
 
 validate-site:
 	python3 scripts/validate_site.py --site site --results "$(RESULTS)"
+
+validate-metadata:
+	python3 scripts/validate_experiments.py
+
+test:
+	python3 -m unittest discover -s tests
 
 pages: report validate-site
 

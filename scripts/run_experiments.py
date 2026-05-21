@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import csv
 import datetime as dt
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -72,6 +74,53 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+
+
+def git_value(*args: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return None
+    value = completed.stdout.strip()
+    return value if completed.returncode == 0 and value else None
+
+
+def build_provenance() -> dict[str, Any]:
+    env_keys = [
+        "GITHUB_ACTIONS",
+        "GITHUB_SERVER_URL",
+        "GITHUB_REPOSITORY",
+        "GITHUB_RUN_ID",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_WORKFLOW",
+        "GITHUB_REF_NAME",
+        "GITHUB_SHA",
+        "RUNNER_OS",
+        "RUNNER_ARCH",
+        "IMAGE_NAME",
+    ]
+    env = {key: value for key in env_keys if (value := os.environ.get(key))}
+    run_url = None
+    if all(key in env for key in ["GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID"]):
+        run_url = f"{env['GITHUB_SERVER_URL']}/{env['GITHUB_REPOSITORY']}/actions/runs/{env['GITHUB_RUN_ID']}"
+    return {
+        "generated_by": "scripts/run_experiments.py",
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "git_commit": env.get("GITHUB_SHA") or git_value("rev-parse", "HEAD"),
+        "git_branch": env.get("GITHUB_REF_NAME") or git_value("rev-parse", "--abbrev-ref", "HEAD"),
+        "github_run_url": run_url,
+        "environment": env,
+    }
 
 
 def safe_name(value: str) -> str:
@@ -288,6 +337,8 @@ def run_one(
     duration_sec = round(time.monotonic() - start, 3)
     stdout_path.write_text(stdout, encoding="utf-8", errors="replace")
     stderr_path.write_text(stderr, encoding="utf-8", errors="replace")
+    if not program_output.exists():
+        program_output.write_text("", encoding="utf-8")
 
     stats = parse_stats(stdout + "\n" + stderr)
     run = {
@@ -338,6 +389,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-instructions", type=int, default=100000, help="Instruction cap; use 0 for complete benchmark runs")
     parser.add_argument("--timeout-sec", type=int, default=0, help="Per-run timeout; use 0 for no timeout")
     parser.add_argument("--dry-run", action="store_true", help="Write planned runs without executing sim-outorder")
+    parser.add_argument("--jobs", type=int, default=1, help="Parallel local run workers; use 1 for sequential execution")
     parser.add_argument("--list", action="store_true", help="List available benchmark and experiment sets")
     return parser
 
@@ -378,13 +430,19 @@ def main(argv: list[str] | None = None) -> int:
 
     output = (ROOT / args.output).resolve() if not Path(args.output).is_absolute() else Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
-    runs: list[dict[str, Any]] = []
+    run_plan: list[tuple[str, dict[str, Any], str, dict[str, Any]]] = []
     started_at = now_iso()
 
     for benchmark_name in selected_benchmarks:
         benchmark = benchmarks[benchmark_name]
         for experiment_id in selected_experiments:
             experiment = experiments[experiment_id]
+            run_plan.append((benchmark_name, benchmark, experiment_id, experiment))
+
+    jobs = max(1, args.jobs)
+    runs: list[dict[str, Any]] = []
+    if jobs == 1:
+        for benchmark_name, benchmark, experiment_id, experiment in run_plan:
             print(f"[{benchmark_name}] {experiment_id}: {experiment['title']}", flush=True)
             run = run_one(
                 args.sim_bin,
@@ -398,6 +456,28 @@ def main(argv: list[str] | None = None) -> int:
                 args.dry_run,
             )
             runs.append(run)
+    else:
+        indexed_runs: list[dict[str, Any] | None] = [None] * len(run_plan)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+            future_to_index = {}
+            for index, (benchmark_name, benchmark, experiment_id, experiment) in enumerate(run_plan):
+                print(f"[{benchmark_name}] {experiment_id}: {experiment['title']}", flush=True)
+                future = executor.submit(
+                    run_one,
+                    args.sim_bin,
+                    benchmark_name,
+                    benchmark,
+                    experiment_id,
+                    experiment,
+                    output,
+                    args.max_instructions,
+                    args.timeout_sec,
+                    args.dry_run,
+                )
+                future_to_index[future] = index
+            for future in concurrent.futures.as_completed(future_to_index):
+                indexed_runs[future_to_index[future]] = future.result()
+        runs = [run for run in indexed_runs if run is not None]
 
     aggregate = {
         "schema_version": 1,
@@ -413,6 +493,7 @@ def main(argv: list[str] | None = None) -> int:
         "selected_experiments": selected_experiments,
         "benchmarks": {name: benchmarks[name] for name in selected_benchmarks},
         "experiments": {name: experiments[name] for name in selected_experiments},
+        "provenance": build_provenance(),
         "runs": runs,
     }
     write_json(output / "results.json", aggregate)

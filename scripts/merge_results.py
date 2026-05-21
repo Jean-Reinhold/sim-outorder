@@ -45,6 +45,7 @@ def merge_results(inputs: list[Path], output: Path, benchmark_selection: str | N
     benchmarks: dict[str, Any] = {}
     experiments: dict[str, Any] = {}
     runs: list[dict[str, Any]] = []
+    shard_summaries: list[dict[str, Any]] = []
     first: dict[str, Any] | None = None
 
     for shard_path in sorted(shard_paths):
@@ -56,6 +57,15 @@ def merge_results(inputs: list[Path], output: Path, benchmark_selection: str | N
         benchmarks.update(shard.get("benchmarks", {}))
         experiments.update(shard.get("experiments", {}))
         runs.extend(shard.get("runs", []))
+        shard_summaries.append(
+            {
+                "path": str(shard_path),
+                "selected_benchmarks": shard.get("selected_benchmarks", []),
+                "selected_experiments": shard.get("selected_experiments", []),
+                "run_count": len(shard.get("runs", [])),
+                "provenance": shard.get("provenance", {}),
+            }
+        )
 
         runs_source = shard_path / "runs"
         if runs_source.exists():
@@ -76,6 +86,13 @@ def merge_results(inputs: list[Path], output: Path, benchmark_selection: str | N
         "selected_experiments": selected_experiments,
         "benchmarks": benchmarks,
         "experiments": experiments,
+        "provenance": {
+            **first.get("provenance", {}),
+            "generated_by": "scripts/merge_results.py",
+            "merged_at": now_iso(),
+            "merged_shard_count": len(shard_summaries),
+            "shards": shard_summaries,
+        },
         "runs": sorted(runs, key=lambda run: (run.get("benchmark", ""), run.get("experiment", ""))),
     }
     write_json(output / "results.json", aggregate)

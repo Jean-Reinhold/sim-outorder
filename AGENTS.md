@@ -21,8 +21,11 @@ experiments/benchmark_sets.json    Named benchmark groups, including course pair
 experiments/experiment_sets.json   Assignment experiment configurations
 experiments/report.json            Report title, task descriptions, and questions
 scripts/run_experiments.py         Only supported experiment runner
+scripts/benchmark_matrix.py        Creates CI benchmark/task shard matrices
 scripts/merge_results.py           Merges parallel benchmark shards for CI/Pages
 scripts/generate_report.py         Only supported static report generator
+scripts/validate_experiments.py    Validates metadata before simulation
+scripts/validate_results.py        Validates generated result aggregates
 scripts/validate_site.py           Validates generated Pages output before deploy
 .github/workflows/experiments.yml  CI and Pages deployment workflow
 .opencode/agents/experiment-analyst.md       OpenCode subagent for interpreting measured results
@@ -58,9 +61,12 @@ make smoke
 Use dry-run mode for metadata-only validation:
 
 ```sh
+python3 scripts/validate_experiments.py
 python3 scripts/run_experiments.py --benchmarks quick --experiment-set assignment --dry-run --output results/dry-run
+python3 scripts/validate_results.py --results results/dry-run
 python3 scripts/generate_report.py --results results/dry-run --output site
 python3 scripts/validate_site.py --site site --results results/dry-run
+python3 -m unittest discover -s tests
 ```
 
 For final runs, use the selected course pair benchmark set and `EXPERIMENTS=assignment`. Use `MAX_INST=0` only when full uncapped simulation time is acceptable.
@@ -70,3 +76,5 @@ Before changing experiment definitions, validate the whole matrix cheaply:
 ```sh
 docker run --rm -v "$PWD:/workspace" -w /workspace sim-outorder:local python3 scripts/run_experiments.py --benchmarks all --experiment-set assignment --max-instructions 1000 --timeout-sec 300 --output results/verify-all
 ```
+
+For local parallel validation, pass `--jobs N` to `scripts/run_experiments.py` or use `make run JOBS=N`. Keep `JOBS=1` when comparing logs where strict run order is useful.
