@@ -26,9 +26,12 @@
       "task3_perfect"
     ],
     "task4": [
-      "task4_balanced",
-      "task4_memory_window",
-      "task4_compute_wide"
+      "task4_li3_economico",
+      "task4_li3_equilibrado",
+      "task4_li3_robusto",
+      "task4_vortex2_economico",
+      "task4_vortex2_memoria",
+      "task4_vortex2_robusto"
     ],
     "assignment": [
       "task1_width1_inorder",
@@ -48,9 +51,12 @@
       "task3_taken",
       "task3_bimod",
       "task3_perfect",
-      "task4_balanced",
-      "task4_memory_window",
-      "task4_compute_wide"
+      "task4_li3_economico",
+      "task4_li3_equilibrado",
+      "task4_li3_robusto",
+      "task4_vortex2_economico",
+      "task4_vortex2_memoria",
+      "task4_vortex2_robusto"
     ]
   },
   "experiments": {
@@ -437,6 +443,126 @@
         "res:imult": 2,
         "res:fpalu": 4,
         "res:fpmult": 2,
+        "res:memport": 4,
+        "bpred": "bimod"
+      }
+    },
+    "task4_li3_economico": {
+      "task": "Tarefa 4",
+      "title": "LI_3 economico",
+      "summary": "Projeto enxuto para LI_3: largura 4, janela moderada e uma porta de memoria.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 32,
+        "commit:width": 4,
+        "lsq:size": 16,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
+        "res:memport": 1,
+        "bpred": "bimod"
+      }
+    },
+    "task4_li3_equilibrado": {
+      "task": "Tarefa 4",
+      "title": "LI_3 equilibrado",
+      "summary": "Projeto intermediario para LI_3: mantem largura 4, mas aumenta RUU, LSQ e memoria.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 64,
+        "commit:width": 4,
+        "lsq:size": 32,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
+        "res:memport": 2,
+        "bpred": "bimod"
+      }
+    },
+    "task4_li3_robusto": {
+      "task": "Tarefa 4",
+      "title": "LI_3 robusto",
+      "summary": "Projeto agressivo para LI_3: largura 8 com janela grande e quatro portas de memoria.",
+      "options": {
+        "fetch:ifqsize": 8,
+        "decode:width": 8,
+        "issue:width": 8,
+        "issue:inorder": false,
+        "ruu:size": 128,
+        "commit:width": 8,
+        "lsq:size": 64,
+        "res:ialu": 8,
+        "res:imult": 2,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
+        "res:memport": 4,
+        "bpred": "bimod"
+      }
+    },
+    "task4_vortex2_economico": {
+      "task": "Tarefa 4",
+      "title": "VORTEX_2 economico",
+      "summary": "Projeto enxuto para VORTEX_2: largura 4 com RUU 32, LSQ 16 e uma porta de memoria.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 32,
+        "commit:width": 4,
+        "lsq:size": 16,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
+        "res:memport": 1,
+        "bpred": "bimod"
+      }
+    },
+    "task4_vortex2_memoria": {
+      "task": "Tarefa 4",
+      "title": "VORTEX_2 memoria",
+      "summary": "Projeto intermediario para VORTEX_2: prioriza RUU 64, LSQ 32 e duas portas de memoria.",
+      "options": {
+        "fetch:ifqsize": 4,
+        "decode:width": 4,
+        "issue:width": 4,
+        "issue:inorder": false,
+        "ruu:size": 64,
+        "commit:width": 4,
+        "lsq:size": 32,
+        "res:ialu": 4,
+        "res:imult": 1,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
+        "res:memport": 2,
+        "bpred": "bimod"
+      }
+    },
+    "task4_vortex2_robusto": {
+      "task": "Tarefa 4",
+      "title": "VORTEX_2 robusto",
+      "summary": "Projeto agressivo para VORTEX_2: largura 8, RUU 128, LSQ 128 e quatro portas de memoria.",
+      "options": {
+        "fetch:ifqsize": 8,
+        "decode:width": 8,
+        "issue:width": 8,
+        "issue:inorder": false,
+        "ruu:size": 128,
+        "commit:width": 8,
+        "lsq:size": 128,
+        "res:ialu": 8,
+        "res:imult": 2,
+        "res:fpalu": 1,
+        "res:fpmult": 1,
         "res:memport": 4,
         "bpred": "bimod"
       }

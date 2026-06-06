@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from task4_search_space import add_task4_search_space
+
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS_DIR = ROOT / "experiments"
@@ -93,7 +95,7 @@ def main() -> int:
     args = build_parser().parse_args()
     benchmark_doc = read_json(EXPERIMENTS_DIR / "benchmarks.json")
     benchmark_set_doc = read_json(EXPERIMENTS_DIR / "benchmark_sets.json")
-    experiment_doc = read_json(EXPERIMENTS_DIR / "experiment_sets.json")
+    experiment_doc = add_task4_search_space(read_json(EXPERIMENTS_DIR / "experiment_sets.json"))
     selected = resolve_selection(args.benchmarks, benchmark_set_doc["sets"], set(benchmark_doc["benchmarks"]), "benchmark")
     selected_experiments = resolve_selection(args.experiment_set, experiment_doc["sets"], set(experiment_doc["experiments"]), "experiment")
     matrix = matrix_for_mode(selected, selected_experiments, experiment_doc, args.mode)

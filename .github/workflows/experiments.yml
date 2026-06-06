@@ -200,6 +200,9 @@ jobs:
       - name: Generate static report
         run: python3 scripts/generate_report.py --results "$RESULTS_DIR" --output site
 
+      - name: Generate Jean benchmark page
+        run: python3 scripts/generate_jean_page.py --results results/jean-final --search-results results/jean-task4-search --output site/jean-li3-vortex2.html
+
       - name: Validate generated site
         run: python3 scripts/validate_site.py --site site --results "$RESULTS_DIR"
 

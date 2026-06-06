@@ -79,6 +79,20 @@ def validate(site: Path, results_dir: Path) -> None:
     if 'id="visuals"' in html and "plot-card" not in html:
         fail("visual section exists but no plot cards were rendered")
 
+    jean_page = site / "jean-li3-vortex2.html"
+    if jean_page.exists():
+        jean_html = jean_page.read_text(encoding="utf-8")
+        for marker in ['id="perfil"', 'id="t1"', 'id="t2"', 'id="t3"', 'id="t4"', 'id="dados"']:
+            if marker not in jean_html:
+                fail(f"missing Jean page section marker {marker}")
+        for asset in ['href="index.html"', 'href="data/jean-final-results.json"']:
+            if asset not in jean_html:
+                fail(f"missing Jean page link {asset}")
+        if not (site / "data" / "jean-final-results.json").exists():
+            fail("missing Jean page data file data/jean-final-results.json")
+        if "Jean Reinhold: LI_3 e VORTEX_2" not in jean_html:
+            fail("Jean page title was not rendered")
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)

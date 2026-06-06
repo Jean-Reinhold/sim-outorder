@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import merge_results  # noqa: E402
+import task4_search_space  # noqa: E402
 import validate_experiments  # noqa: E402
 import validate_results  # noqa: E402
 import validate_site  # noqa: E402
@@ -30,6 +31,13 @@ class ScriptTests(unittest.TestCase):
 
     def test_metadata_validation_passes(self) -> None:
         validate_experiments.validate_all()
+
+    def test_task4_search_space_is_broad(self) -> None:
+        experiments = task4_search_space.build_task4_search_experiments()
+        self.assertGreaterEqual(len(experiments), 90)
+        self.assertIn("task4_search_core_w4_r32_l16_m2", experiments)
+        self.assertIn("task4_search_mem_w8_r128_l128_m4", experiments)
+        self.assertTrue(all(experiment["task"] == "Tarefa 4" for experiment in experiments.values()))
 
     def test_benchmark_matrix_modes(self) -> None:
         benchmark = self.run_script("scripts/benchmark_matrix.py", "--benchmarks", "short", "--experiment-set", "smoke")

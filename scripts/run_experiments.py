@@ -20,6 +20,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from task4_search_space import add_task4_search_space
+
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS_DIR = ROOT / "experiments"
@@ -58,6 +60,104 @@ CSV_FIELDS = [
     "il1.miss_rate",
     "dl1.miss_rate",
 ]
+
+
+def format_duration(seconds: float | int | None) -> str:
+    if seconds is None or not isinstance(seconds, (int, float)) or seconds < 0:
+        return "calculando"
+    seconds = int(round(seconds))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:d}h{minutes:02d}m{secs:02d}s"
+    return f"{minutes:d}m{secs:02d}s"
+
+
+def progress_payload(
+    runs: list[dict[str, Any]],
+    total: int,
+    started_at: str,
+    started_monotonic: float,
+    pending_count: int,
+) -> dict[str, Any]:
+    elapsed = max(0.0, time.monotonic() - started_monotonic)
+    done = len(runs)
+    statuses: dict[str, int] = {}
+    for run in runs:
+        status = str(run.get("status", "unknown"))
+        statuses[status] = statuses.get(status, 0) + 1
+    eta = (elapsed / done * (total - done)) if done else None
+    return {
+        "generated_at": now_iso(),
+        "started_at": started_at,
+        "total": total,
+        "done": done,
+        "pending": pending_count,
+        "percent": round(done / total * 100, 2) if total else 100.0,
+        "statuses": statuses,
+        "elapsed_sec": round(elapsed, 3),
+        "eta_sec": round(eta, 3) if eta is not None else None,
+        "elapsed": format_duration(elapsed),
+        "eta": format_duration(eta),
+    }
+
+
+def progress_bar(done: int, total: int, width: int = 28) -> str:
+    if total <= 0:
+        return "[" + "#" * width + "]"
+    filled = min(width, int(round(done / total * width)))
+    return "[" + "#" * filled + "." * (width - filled) + "]"
+
+
+def emit_progress(output: Path, runs: list[dict[str, Any]], total: int, started_at: str, started_monotonic: float, pending_count: int) -> None:
+    payload = progress_payload(runs, total, started_at, started_monotonic, pending_count)
+    write_json(output / "progress.json", payload)
+    statuses = payload["statuses"]
+    ok = statuses.get("completed", 0)
+    planned = statuses.get("planned", 0)
+    failed = statuses.get("failed", 0) + statuses.get("timed_out", 0)
+    print(
+        "progress "
+        f"{progress_bar(payload['done'], payload['total'])} "
+        f"{payload['done']}/{payload['total']} "
+        f"({payload['percent']:.2f}%) "
+        f"ok={ok} planned={planned} failed={failed} running={payload['pending']} "
+        f"elapsed={payload['elapsed']} eta={payload['eta']}",
+        flush=True,
+    )
+
+
+def build_run_plan(
+    selected_benchmarks: list[str],
+    selected_experiments: list[str],
+    benchmarks: dict[str, dict[str, Any]],
+    experiments: dict[str, dict[str, Any]],
+    schedule: str,
+) -> list[tuple[str, dict[str, Any], str, dict[str, Any]]]:
+    if schedule == "grouped":
+        return [
+            (benchmark_name, benchmarks[benchmark_name], experiment_id, experiments[experiment_id])
+            for benchmark_name in selected_benchmarks
+            for experiment_id in selected_experiments
+        ]
+    if schedule == "interleaved":
+        return [
+            (benchmark_name, benchmarks[benchmark_name], experiment_id, experiments[experiment_id])
+            for experiment_id in selected_experiments
+            for benchmark_name in selected_benchmarks
+        ]
+    if schedule == "shortest-first":
+        return sorted(
+            build_run_plan(selected_benchmarks, selected_experiments, benchmarks, experiments, "grouped"),
+            key=lambda item: (item[1].get("total_instructions", 0), item[0], item[2]),
+        )
+    if schedule == "longest-first":
+        return sorted(
+            build_run_plan(selected_benchmarks, selected_experiments, benchmarks, experiments, "grouped"),
+            key=lambda item: (item[1].get("total_instructions", 0), item[0], item[2]),
+            reverse=True,
+        )
+    raise ValueError(f"Unsupported schedule: {schedule}")
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -390,6 +490,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-sec", type=int, default=0, help="Per-run timeout; use 0 for no timeout")
     parser.add_argument("--dry-run", action="store_true", help="Write planned runs without executing sim-outorder")
     parser.add_argument("--jobs", type=int, default=1, help="Parallel local run workers; use 1 for sequential execution")
+    parser.add_argument("--progress-interval-sec", type=float, default=30.0, help="Seconds between progress heartbeats")
+    parser.add_argument(
+        "--schedule",
+        choices=["grouped", "interleaved", "shortest-first", "longest-first"],
+        default="grouped",
+        help="Run-plan ordering before parallel execution",
+    )
     parser.add_argument("--list", action="store_true", help="List available benchmark and experiment sets")
     return parser
 
@@ -398,7 +505,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     benchmark_doc = read_json(EXPERIMENTS_DIR / "benchmarks.json")
     benchmark_set_doc = read_json(EXPERIMENTS_DIR / "benchmark_sets.json")
-    experiment_doc = read_json(EXPERIMENTS_DIR / "experiment_sets.json")
+    experiment_doc = add_task4_search_space(read_json(EXPERIMENTS_DIR / "experiment_sets.json"))
     benchmarks = benchmark_doc["benchmarks"]
     experiments = experiment_doc["experiments"]
 
@@ -430,19 +537,16 @@ def main(argv: list[str] | None = None) -> int:
 
     output = (ROOT / args.output).resolve() if not Path(args.output).is_absolute() else Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
-    run_plan: list[tuple[str, dict[str, Any], str, dict[str, Any]]] = []
     started_at = now_iso()
-
-    for benchmark_name in selected_benchmarks:
-        benchmark = benchmarks[benchmark_name]
-        for experiment_id in selected_experiments:
-            experiment = experiments[experiment_id]
-            run_plan.append((benchmark_name, benchmark, experiment_id, experiment))
+    started_monotonic = time.monotonic()
+    run_plan = build_run_plan(selected_benchmarks, selected_experiments, benchmarks, experiments, args.schedule)
 
     jobs = max(1, args.jobs)
     runs: list[dict[str, Any]] = []
+    total_runs = len(run_plan)
+    emit_progress(output, runs, total_runs, started_at, started_monotonic, total_runs)
     if jobs == 1:
-        for benchmark_name, benchmark, experiment_id, experiment in run_plan:
+        for index, (benchmark_name, benchmark, experiment_id, experiment) in enumerate(run_plan):
             print(f"[{benchmark_name}] {experiment_id}: {experiment['title']}", flush=True)
             run = run_one(
                 args.sim_bin,
@@ -456,6 +560,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.dry_run,
             )
             runs.append(run)
+            emit_progress(output, runs, total_runs, started_at, started_monotonic, total_runs - index - 1)
     else:
         indexed_runs: list[dict[str, Any] | None] = [None] * len(run_plan)
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
@@ -475,8 +580,21 @@ def main(argv: list[str] | None = None) -> int:
                     args.dry_run,
                 )
                 future_to_index[future] = index
-            for future in concurrent.futures.as_completed(future_to_index):
-                indexed_runs[future_to_index[future]] = future.result()
+            pending = set(future_to_index)
+            while pending:
+                done_futures, pending = concurrent.futures.wait(
+                    pending,
+                    timeout=max(1.0, args.progress_interval_sec),
+                    return_when=concurrent.futures.FIRST_COMPLETED,
+                )
+                if not done_futures:
+                    partial_runs = [run for run in indexed_runs if run is not None]
+                    emit_progress(output, partial_runs, total_runs, started_at, started_monotonic, len(pending))
+                    continue
+                for future in done_futures:
+                    indexed_runs[future_to_index[future]] = future.result()
+                partial_runs = [run for run in indexed_runs if run is not None]
+                emit_progress(output, partial_runs, total_runs, started_at, started_monotonic, len(pending))
         runs = [run for run in indexed_runs if run is not None]
 
     aggregate = {
