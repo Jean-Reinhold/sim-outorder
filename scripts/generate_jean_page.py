@@ -614,7 +614,7 @@ def build_html(final: dict[str, Any], search: dict[str, Any] | None) -> str:
       </div>
       <p class="eyebrow">Relatório técnico · SimpleScalar sim-outorder</p>
       <h1>Jean Reinhold: LI_3 e VORTEX_2</h1>
-      <p class="lede">Este é o relatório dos meus experimentos com processadores superescalares no sim-outorder, restritos aos dois benchmarks que me couberam. Reúno aqui os números que medi, monto os gráficos que sustentam cada leitura e respondo, no corpo do texto, a todas as perguntas do enunciado.</p>
+      <p class="lede">Medições no sim-outorder do efeito de largura, execução fora de ordem, tamanho de janela e previsão de desvios sobre o CPI, com uma customização final por benchmark.</p>
       <dl class="meta">
         <div><dt>Autor</dt><dd>Jean Reinhold</dd></div>
         <div><dt>Benchmarks</dt><dd>LI_3 e VORTEX_2</dd></div>
