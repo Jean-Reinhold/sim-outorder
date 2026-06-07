@@ -304,22 +304,54 @@ def task4_table(data: dict[str, Any], benchmark: str) -> str:
 
 def coverage_table() -> str:
     rows = [
-        ("Tarefa 1", "Impacto da largura em CPI", "Seção 3"),
-        ("Tarefa 1", "Impacto da execução fora de ordem", "Seção 3"),
-        ("Tarefa 1", "Pipeline largo: em ordem ou fora de ordem?", "Seção 3"),
-        ("Tarefa 2", "Impacto de janelas maiores", "Seção 4"),
-        ("Tarefa 2", "A melhoria satura?", "Seção 4"),
-        ("Tarefa 3", "Estatísticas de uso do previsor", "Seção 5"),
-        ("Tarefa 3", "Impacto no CPI vs. perfect", "Seção 5"),
-        ("Tarefa 3", "Ganho relativo do bimodal", "Seção 5"),
-        ("Tarefa 4", "Menor CPI por benchmark", "Seção 6"),
-        ("Tarefa 4", "A vencedora justifica o custo?", "Seção 6"),
-        ("Tarefa 4", "Custos além do CPI", "Seção 6"),
+        ("Tarefa 1", "Impacto da largura em CPI", "Reduz o CPI nos dois (LI_3 ~17%, VORTEX_2 ~24% em ordem), com retornos decrescentes.", "Seção 3"),
+        ("Tarefa 1", "Impacto da execução fora de ordem", "Pequeno na largura 1 (~1.5%) e grande na largura 8 (LI_3 26%, VORTEX_2 20%).", "Seção 3"),
+        ("Tarefa 1", "Pipeline largo: em ordem ou fora de ordem?", "Fora de ordem; o menor CPI de cada benchmark está na largura 8 OOO.", "Seção 3"),
+        ("Tarefa 2", "Impacto de janelas maiores", "Reduzem o CPI (LI_3 26%, VORTEX_2 29% de RUU 4 a 64).", "Seção 4"),
+        ("Tarefa 2", "A melhoria satura?", "Não até RUU 64, mas o ganho do último passo cai para 3% a 5%.", "Seção 4"),
+        ("Tarefa 3", "Estatísticas de uso do previsor", "Taxa de direção e de endereço, consultas e misses (bimod acerta 0.9247 e 0.9718 a direção).", "Seção 5"),
+        ("Tarefa 3", "Impacto no CPI vs. perfect", "Bimod ~5.75% acima no LI_3; junto do perfect no VORTEX_2; estáticos bem piores.", "Seção 5"),
+        ("Tarefa 3", "Ganho relativo do bimodal", "~24% sobre os estáticos no LI_3, ~11% no VORTEX_2.", "Seção 5"),
+        ("Tarefa 4", "Menor CPI por benchmark", "Robusto nos dois (LI_3 1.8929, VORTEX_2 3.7361).", "Seção 6"),
+        ("Tarefa 4", "A vencedora justifica o custo?", "Em CPI sim; em custo-benefício a equilibrada/memória compensa mais.", "Seção 6"),
+        ("Tarefa 4", "Custos além do CPI", "Área, energia, frequência, complexidade de RUU/LSQ e verificação.", "Seção 6"),
     ]
-    body = "".join(f"<tr><td>{h(task)}</td><td>{h(question)}</td><td>{h(where)}</td></tr>" for task, question, where in rows)
+    body = "".join(
+        f"<tr><td>{h(task)}</td><td>{h(question)}</td><td>{h(answer)}</td><td>{h(where)}</td></tr>"
+        for task, question, answer, where in rows
+    )
     return (
-        "<table><thead><tr><th>tarefa</th><th>pergunta do enunciado</th><th>onde respondo</th></tr></thead>"
+        "<table><thead><tr><th>tarefa</th><th>pergunta do enunciado</th><th>resposta curta</th><th>seção</th></tr></thead>"
         f"<tbody>{body}</tbody></table>"
+    )
+
+
+COST_WEIGHT_LABELS = {
+    "res:memport": "porta de memória",
+    "res:imult": "multiplicador inteiro",
+    "res:fpmult": "multiplicador de ponto flutuante",
+    "issue:width": "largura de emissão",
+    "res:ialu": "ALU inteira",
+    "res:fpalu": "ALU de ponto flutuante",
+    "decode:width": "largura de decode",
+    "commit:width": "largura de commit",
+    "lsq:size": "entrada de LSQ",
+    "fetch:ifqsize": "entrada da fila de fetch",
+    "ruu:size": "entrada de RUU",
+}
+
+
+def cost_weights_table() -> str:
+    rows = []
+    for key, weight in sorted(COST_WEIGHTS.items(), key=lambda item: item[1], reverse=True):
+        rows.append(
+            f"<tr><td>{h(COST_WEIGHT_LABELS.get(key, key))}</td>"
+            f"<td><code>{h(key)}</code></td>"
+            f"<td class=\"num\">{fmt(weight, 1)}</td></tr>"
+        )
+    return (
+        "<table><thead><tr><th>recurso</th><th>parâmetro</th><th class=\"num\">peso por unidade</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
     )
 
 
@@ -418,26 +450,78 @@ def task3_bar_chart(data: dict[str, Any]) -> str:
     )
 
 
-def task4_scatter_chart(data: dict[str, Any]) -> str:
+def task4_pyramid(data: dict[str, Any]) -> str:
+    tiers = [
+        ("Robusto", "task4_li3_robusto", "task4_vortex2_robusto", "#003d73"),
+        ("Equilibrado · Memória", "task4_li3_equilibrado", "task4_vortex2_memoria", "#2f6092"),
+        ("Econômico", "task4_li3_economico", "task4_vortex2_economico", "#6d92b8"),
+    ]
+    geometry = [(24, 112, 150, 220), (116, 204, 220, 290), (208, 296, 290, 360)]
+    center = 490
+    blocks = []
+    for (name, li_exp, vo_exp, color), (top_y, bottom_y, top_hw, bottom_hw) in zip(tiers, geometry):
+        li = find_run(data, "LI_3", li_exp)
+        vo = find_run(data, "VORTEX_2", vo_exp)
+        li_cost = cost_index(li.get("options", {})) if li else None
+        vo_cost = cost_index(vo.get("options", {})) if vo else None
+        pts = (
+            f"{center - top_hw},{top_y} {center + top_hw},{top_y} "
+            f"{center + bottom_hw},{bottom_y} {center - bottom_hw},{bottom_y}"
+        )
+        mid = (top_y + bottom_y) / 2
+        blocks.append(
+            f'<polygon points="{pts}" fill="{color}"/>'
+            f'<text x="{center}" y="{mid - 13:.0f}" text-anchor="middle" fill="#ffffff" font-size="17" font-weight="700">{h(name)}</text>'
+            f'<text x="{center}" y="{mid + 7:.0f}" text-anchor="middle" fill="#eaf2fb" font-size="12.5">LI_3 · CPI {fmt(cpi(li), 2)} · custo {fmt(li_cost, 0)}</text>'
+            f'<text x="{center}" y="{mid + 25:.0f}" text-anchor="middle" fill="#eaf2fb" font-size="12.5">VORTEX_2 · CPI {fmt(cpi(vo), 2)} · custo {fmt(vo_cost, 0)}</text>'
+        )
+    return (
+        '<svg class="plot-svg" viewBox="0 0 980 320" role="img" aria-label="As três frentes de configuração da Tarefa 4">'
+        '<title>As três frentes de configuração da Tarefa 4</title>'
+        '<text x="18" y="16" class="plot-axis">do menor custo (base) ao máximo desempenho (topo)</text>'
+        f'{"".join(blocks)}</svg>'
+    )
+
+
+def task4_scatter_chart(final: dict[str, Any], search: dict[str, Any] | None = None) -> str:
     groups = [("LI_3", UFPEL_BLUE), ("VORTEX_2", UFPEL_GOLD)]
-    points: list[tuple[str, str, float, float]] = []
+    color_of = dict(groups)
+    final_points: list[tuple[str, str, float, float]] = []
     for bench, color in groups:
         for experiment in TASK4_FINAL[bench]:
-            run = find_run(data, bench, experiment)
+            run = find_run(final, bench, experiment)
             if not run:
                 continue
             value = cpi(run)
             if value is None:
                 continue
-            cost = cost_index(run.get("options", {}))
-            points.append((TASK4_LABELS.get(experiment, experiment), color, cost, value))
-    if len(points) < 2:
+            final_points.append((TASK4_LABELS.get(experiment, experiment), color, cost_index(run.get("options", {})), value))
+    if len(final_points) < 2:
         return chart_empty("São necessárias ao menos duas configurações completas para o gráfico de custo.")
 
-    x_min, x_max = value_range([point[2] for point in points], 0.14)
-    y_min, y_max = value_range([point[3] for point in points], 0.16)
-    width, height = 980, 400
-    left, top, plot_w, plot_h = 64, 28, 856, 280
+    search_points: list[tuple[str, float, float]] = []
+    if search:
+        for run in search.get("runs", []):
+            bench = run.get("benchmark")
+            if run.get("status") != "completed" or bench not in color_of:
+                continue
+            value = cpi(run)
+            if value is None:
+                continue
+            search_points.append((color_of[bench], cost_index(run.get("options", {})), value))
+
+    costs = [point[2] for point in final_points] + [point[1] for point in search_points]
+    cpis = [point[3] for point in final_points] + [point[2] for point in search_points]
+    x_min, x_max = value_range(costs, 0.08)
+    y_min, y_max = value_range(cpis, 0.08)
+    width, height = 980, 410
+    left, top, plot_w, plot_h = 64, 28, 856, 286
+
+    def place(cost: float, value: float) -> tuple[float, float]:
+        x = left + (cost - x_min) / (x_max - x_min) * plot_w
+        y = top + (y_max - value) / (y_max - y_min) * plot_h
+        return x, y
+
     grid = []
     for i in range(4):
         x = left + plot_w * i / 3
@@ -450,15 +534,18 @@ def task4_scatter_chart(data: dict[str, Any]) -> str:
         grid.append(f'<line x1="{left}" y1="{y:.1f}" x2="{left + plot_w}" y2="{y:.1f}" class="plot-grid"/>')
         grid.append(f'<text x="{left - 10}" y="{y + 4:.1f}" class="plot-axis" text-anchor="end">{fmt(y_value, 2)}</text>')
 
+    cloud = []
+    for color, cost, value in search_points:
+        x, y = place(cost, value)
+        cloud.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="{color}" opacity="0.3"/>')
+
     marks = []
-    for label, color, cost, value in points:
-        x = left + (cost - x_min) / (x_max - x_min) * plot_w
-        y = top + (y_max - value) / (y_max - y_min) * plot_h
+    for label, color, cost, value in final_points:
+        x, y = place(cost, value)
         marks.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="15" fill="{color}" opacity="0.14"/>'
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="8" fill="{color}"/>'
-            f'<text x="{x + 13:.1f}" y="{y - 7:.1f}" class="plot-label tiny">{h(label)}</text>'
-            f'<text x="{x + 13:.1f}" y="{y + 8:.1f}" class="plot-muted tiny">{fmt(value, 2)} CPI</text>'
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="7.5" fill="{color}" stroke="#ffffff" stroke-width="2"/>'
+            f'<text x="{x + 12:.1f}" y="{y - 6:.1f}" class="plot-label tiny">{h(label)}</text>'
+            f'<text x="{x + 12:.1f}" y="{y + 9:.1f}" class="plot-muted tiny">{fmt(value, 2)} CPI</text>'
         )
 
     legend = []
@@ -466,13 +553,16 @@ def task4_scatter_chart(data: dict[str, Any]) -> str:
         x = left + i * 150
         legend.append(f'<circle cx="{x + 6}" cy="{height - 13}" r="6" fill="{color}"/>')
         legend.append(f'<text x="{x + 18}" y="{height - 9}" class="plot-axis">{h(bench)}</text>')
+    if search_points:
+        legend.append(f'<circle cx="{left + 320}" cy="{height - 13}" r="3" fill="#9bb6cf"/>')
+        legend.append(f'<text x="{left + 330}" y="{height - 9}" class="plot-axis">configurações da busca</text>')
 
     return (
         f'<svg class="plot-svg" viewBox="0 0 {width} {height}" role="img" aria-label="Custo arquitetural contra CPI">'
         f'<title>Custo arquitetural contra CPI</title>{"".join(grid)}'
         f'<text x="18" y="18" class="plot-axis">CPI medido (menor é melhor)</text>'
         f'<text x="{left + plot_w / 2:.1f}" y="{height - 30:.1f}" class="plot-axis" text-anchor="middle">índice de custo arquitetural (heurístico)</text>'
-        f"{''.join(marks)}{''.join(legend)}</svg>"
+        f'{"".join(cloud)}{"".join(marks)}{"".join(legend)}</svg>'
     )
 
 
@@ -501,7 +591,8 @@ def task2_prose() -> str:
 def task3_prose() -> str:
     return """
     <p>O bimodal acerta a direção do desvio em 0.9247 dos casos no LI_3 e em 0.9718 no VORTEX_2, e o acerto do endereço alvo acompanha de perto (0.8931 e 0.9677). O volume também difere: o LI_3 faz 53.1 milhões de consultas ao previsor e erra 3.1 milhões delas, enquanto o VORTEX_2 faz 10.5 milhões de consultas e erra apenas 287 mil. Os previsores estáticos ficam em torno de 0.35 de acerto de direção nos dois benchmarks, o que confirma que uma regra fixa não acompanha o padrão de desvios desses programas.</p>
-    <p>O custo no CPI varia bastante. No LI_3 o perfect mede 2.0755 e o bimodal 2.1949, cerca de 5.75% acima, enquanto taken e nottaken passam de 2.9, sinal de que o erro de desvio pesa de verdade aqui. No VORTEX_2 o bimodal medido (4.2781) ficou um pouco abaixo do perfect (4.3900). Não interpreto isso como o bimodal superando um oráculo, e sim como efeito da interação entre essa configuração e o simulador, somado ao fato de que, com 0.9718 de acerto, já quase não havia custo de desvio a eliminar.</p>
+    <p>O custo no CPI varia bastante. No LI_3 o perfect mede 2.0755 e o bimodal 2.1949, cerca de 5.75% acima, enquanto taken e nottaken passam de 2.9, sinal de que o erro de desvio pesa de verdade aqui.</p>
+    <p>No VORTEX_2 chama atenção o bimodal (4.2781) aparecer abaixo do perfect (4.3900) na tabela. Fui investigar, e não é o previsor superando um oráculo. As duas execuções concluem exatamente as mesmas 65.133.533 instruções, então a diferença está só nos ciclos: o perfect gasta 285,9 milhões e o bimodal 278,6 milhões. A causa é a cache de instruções. Com previsão perfeita, o front-end nunca é descartado e busca de forma contínua e agressiva, acumulando 82,2 milhões de acessos à cache de instruções contra 74,0 milhões do bimodal; num benchmark cuja taxa de falta de instruções já é alta (perto de 9%), esse excesso de busca vira mais faltas em valor absoluto, 7,53 milhões contra 7,26 milhões. Essas cerca de 270 mil faltas a mais respondem por quase toda a diferença de 7,3 milhões de ciclos. Um previsor real, ao errar de vez em quando, acaba freando o front-end e segurando essa pressão sobre a cache. A ordem só se inverte aqui porque o VORTEX_2 é fortemente limitado pela cache de instruções; no LI_3, com taxa de falta perto de 3%, o perfect é mais rápido como esperado (380,5 contra 402,4 milhões de ciclos).</p>
     <p>O ganho do bimodal sobre os estáticos é o resultado mais consistente. No LI_3 ele reduz o CPI em torno de 24% tanto contra taken quanto contra nottaken; no VORTEX_2, onde havia menos a recuperar, a redução fica perto de 11%. Para o custo de uma tabela de contadores de 2 bits, é um retorno alto, que cobre boa parte da distância até o previsor perfeito.</p>
     """
 
@@ -677,12 +768,16 @@ def build_html(final: dict[str, Any], search: dict[str, Any] | None) -> str:
       </section>
       <section id="t4">
         <h2>6. Tarefa 4: customização do processador</h2>
-        <p class="section-note">Testei até três configurações por benchmark e comparei desempenho contra um índice de custo. Reforço que esse índice é heurístico: usei-o para organizar a discussão, não como estimativa física de área.</p>
+        <p class="section-note">Parti de uma busca exploratória com 99 configurações por benchmark e dela destaquei três frentes: uma econômica, uma intermediária e uma robusta. Comparo o desempenho de cada uma a um índice de custo heurístico, usado para organizar a discussão, não como estimativa física de área.</p>
+        <h3>O índice de custo</h3>
+        <p>O índice é uma soma ponderada dos recursos de cada configuração. Os pesos refletem o custo relativo aproximado de cada estrutura: uma porta de memória pesa 10, os multiplicadores pesam 6 e a largura e as ALUs ficam entre 2 e 3, enquanto cada entrada de RUU (0.4) e de LSQ (0.7) sai barata por unidade. Não é um modelo de área, mas captura a ideia de que dobrar portas de memória custa muito mais do que somar algumas entradas de janela.</p>
+        <div class="table-wrap">{cost_weights_table()}</div>
         <p class="subhead">LI_3</p>
         <div class="table-wrap">{task4_table(final, 'LI_3')}</div>
         <p class="subhead">VORTEX_2</p>
         <div class="table-wrap">{task4_table(final, 'VORTEX_2')}</div>
-        {figure(task4_scatter_chart(final), 'Custo arquitetural contra CPI. Cada benchmark forma o próprio grupo; quanto mais para o canto inferior esquerdo, melhor o compromisso.')}
+        {figure(task4_pyramid(final), 'As três frentes de configuração, da base econômica ao topo robusto. Os valores são por benchmark.')}
+        {figure(task4_scatter_chart(final, search), 'Custo contra CPI. Os pontos claros são as 99 configurações simuladas na busca por benchmark; os destacados são as três escolhidas.')}
         {task4_prose()}
       </section>
       <section id="dados">
