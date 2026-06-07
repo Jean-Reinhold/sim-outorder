@@ -1024,6 +1024,7 @@ def downloads_section() -> str:
         ("Resultados JSON", "data/results.json", "dados completos e metadados de todas as rodadas"),
         ("Resultados CSV", "data/results.csv", "tabela plana para planilhas e scripts"),
         ("Manifesto de runs", "data/run-files.json", "lista de configs, logs e saidas por run"),
+        ("Relatorio LI_3 e VORTEX_2 - Jean Reinhold", "jean-li3-vortex2.html", "analise dedicada, escrita a mao, dos dois benchmarks do Jean"),
     ]
     cards = "".join(
         f'<a class="download-card" href="{h(href)}"><strong>{h(label)}</strong><span>{h(description)}</span></a>'

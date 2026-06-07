@@ -1,11 +1,7 @@
-# Report Link
-
-Direct page to share with the professors:
+# Link Para o Relatório:
 
 https://jean-reinhold.github.io/sim-outorder/jean-li3-vortex2.html
 
-General report homepage:
+Link Para a Homepage:
 
 https://jean-reinhold.github.io/sim-outorder/
-
-Note: the direct page is available after GitHub Actions deploys the generated `site/` output to GitHub Pages.
