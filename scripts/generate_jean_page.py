@@ -413,7 +413,7 @@ def task3_bar_chart(data: dict[str, Any]) -> str:
     return (
         f'<svg class="plot-svg" viewBox="0 0 {width} {height}" role="img" aria-label="CPI por previsor e benchmark">'
         f'<title>CPI por previsor e benchmark</title>'
-        f'<text x="18" y="20" class="plot-axis">CPI por previsor — barras menores são melhores</text>'
+        f'<text x="18" y="20" class="plot-axis">CPI por previsor (menor é melhor)</text>'
         f"{''.join(grid)}{''.join(bars)}{''.join(labels)}{''.join(legend)}</svg>"
     )
 
@@ -470,7 +470,7 @@ def task4_scatter_chart(data: dict[str, Any]) -> str:
     return (
         f'<svg class="plot-svg" viewBox="0 0 {width} {height}" role="img" aria-label="Custo arquitetural contra CPI">'
         f'<title>Custo arquitetural contra CPI</title>{"".join(grid)}'
-        f'<text x="18" y="18" class="plot-axis">CPI medido — mais baixo é melhor</text>'
+        f'<text x="18" y="18" class="plot-axis">CPI medido (menor é melhor)</text>'
         f'<text x="{left + plot_w / 2:.1f}" y="{height - 30:.1f}" class="plot-axis" text-anchor="middle">índice de custo arquitetural (heurístico)</text>'
         f"{''.join(marks)}{''.join(legend)}</svg>"
     )
@@ -484,36 +484,33 @@ def task4_scatter_chart(data: dict[str, Any]) -> str:
 
 def task1_prose() -> str:
     return """
-    <h3>O que a largura realmente compra</h3>
-    <p>Aumentar a largura ajuda os dois benchmarks, mas o ganho nunca é gratuito. No LI_3 em ordem, sair da largura 1 (CPI 3.2732) para a largura 8 (CPI 2.7228) corta o CPI em cerca de 17%. O VORTEX_2, também em ordem, é mais generoso nesse movimento: vai de 6.3690 para 4.8375, uma queda de aproximadamente 24%. A leitura é direta — dar mais slots de emissão por ciclo sempre rende, só que o quanto rende depende de o programa ter paralelismo de instruções para preencher esses slots.</p>
-    <p>A execução fora de ordem fica mais interessante quando olhada lado a lado com a largura. Com largura 1 ela quase não muda nada: o LI_3 melhora apenas 1.20% e o VORTEX_2, 1.50%. E faz todo sentido, porque não adianta reordenar instruções se a máquina só consegue emitir uma por ciclo. O quadro vira com largura 8, onde a reordenação enfim encontra espaço para trabalhar: o LI_3 desce de 2.7228 (em ordem) para 2.0048 (fora de ordem), 26% a menos, e o VORTEX_2 cai de 4.8375 para 3.8685, perto de 20%.</p>
-    <p>Juntando as duas leituras, respondo à terceira pergunta sem rodeios: um pipeline largo é bem mais efetivo fora de ordem. O melhor CPI de cada benchmark — 2.0048 no LI_3 e 3.8685 no VORTEX_2 — aparece justamente na largura 8 com despacho fora de ordem. Um pipeline largo em ordem continua refém da sequência do programa, porque basta uma instrução travar para segurar todas as de trás; é a reordenação que converte a largura disponível em trabalho de fato executado.</p>
+    <p>O aumento de largura reduz o CPI nos dois benchmarks, com retornos decrescentes. No LI_3 em ordem, o CPI cai de 3.2732 na largura 1 para 2.7228 na largura 8, cerca de 17%, e boa parte desse ganho já se realiza até a largura 4 (2.8358). O VORTEX_2 repete o padrão num patamar mais alto, de 6.3690 para 4.8375. A diferença de patamar entre eles vem da memória: o VORTEX_2 erra 9.71% dos acessos na cache de instruções e 7.63% na de dados, contra 2.78% e 4.90% do LI_3, e essas faltas seguram o CPI seja qual for a largura.</p>
+    <p>A execução fora de ordem só rende quando há largura para aproveitar. Na largura 1 ela quase não muda nada, melhorando 1.20% no LI_3 e 1.50% no VORTEX_2, o que faz sentido: com um único slot de emissão por ciclo, não há como reordenar para ganhar trabalho. Na largura 8 a diferença aparece. O LI_3 passa de 2.7228 em ordem para 2.0048 fora de ordem (IPC de 0.50), 26% a menos, e o VORTEX_2 vai de 4.8375 para 3.8685, perto de 20%.</p>
+    <p>Sobre qual configuração aproveita melhor um pipeline largo, os dados não deixam dúvida: o menor CPI de cada benchmark, 2.0048 no LI_3 e 3.8685 no VORTEX_2, está sempre na largura 8 fora de ordem. Em ordem, um pipeline largo continua preso à sequência do programa, porque uma instrução bloqueada trava as seguintes. É a reordenação que transforma a largura em instruções de fato executadas.</p>
     """
 
 
 def task2_prose() -> str:
     return """
-    <h3>Até onde vale crescer a janela</h3>
-    <p>Janelas maiores reduzem o CPI de forma consistente nos dois casos. O LI_3 parte de 2.7480 com RUU 4 e chega a 2.0242 com RUU 64 — um ganho acumulado de pouco mais de 26%. O VORTEX_2 percorre um caminho parecido, de 5.4423 para 3.8872, perto de 29%. O detalhe que mais me chamou atenção foi <em>onde</em> esse ganho se concentra: só a primeira ampliação, de RUU 4 para 8, já entrega cerca de 15% em ambos (o LI_3 de 2.7480 para 2.3422, o VORTEX_2 de 5.4423 para 4.6325). Uma janela pequena estava claramente sufocando a execução fora de ordem.</p>
-    <p>Não cheguei a observar saturação completa até RUU 64, mas o ganho marginal encolhe de forma visível. O último degrau, de RUU 32 para 64, rende apenas 3.50% no LI_3 (2.0976 para 2.0242) e 4.82% no VORTEX_2 (4.0842 para 3.8872). É a curva clássica de retornos decrescentes — ainda compensa crescer, só que cada entrada nova na janela compra menos desempenho do que a anterior. Foi essa leitura que me deixou à vontade para testar janelas grandes na Tarefa 4 e, ao mesmo tempo, me obrigou a tratar RUU e LSQ como recursos que precisam justificar o próprio custo.</p>
+    <p>Janelas maiores reduzem o CPI de forma consistente. O LI_3 cai de 2.7480 (RUU 4) para 2.0242 (RUU 64), cerca de 26%, e o VORTEX_2 de 5.4423 para 3.8872, cerca de 29%. O passo mais forte é o primeiro, de RUU 4 para 8, que sozinho entrega perto de 15% nos dois casos (LI_3 de 2.7480 para 2.3422, VORTEX_2 de 5.4423 para 4.6325).</p>
+    <p>As estatísticas de ocupação explicam esse comportamento melhor do que o CPI isolado. Com RUU 4, a fila de reordenação do LI_3 ficava cheia em 31.75% dos ciclos, ou seja, em quase um terço do tempo havia instrução pronta esperando vaga. Com RUU 64 esse número cai para 8.05% e a ocupação média sobe de 1.99 para 13.63 entradas. No VORTEX_2 o gargalo não é a RUU e sim a LSQ: com a janela pequena, a fila de load/store ficava cheia em 39.30% dos ciclos, coerente com o peso de memória do benchmark. Ampliar a janela alivia exatamente essa pressão.</p>
+    <p>A melhoria não satura por completo até RUU 64, mas perde força. O último degrau, de RUU 32 para 64, rende só 3.50% no LI_3 (2.0976 para 2.0242) e 4.82% no VORTEX_2 (4.0842 para 3.8872). Como nesse ponto a fila fica cheia em menos de 9% dos ciclos, resta pouco a recuperar aumentando a janela, e o custo de RUU e LSQ passa a pesar mais que o ganho. Foi com base nisso que defini as janelas da Tarefa 4.</p>
     """
 
 
 def task3_prose() -> str:
     return """
-    <h3>Quando prever desvios passa a importar</h3>
-    <p>As duas estatísticas que mais me ajudaram a interpretar foram a taxa de acerto de direção e a contagem de erros. No previsor bimodal, o LI_3 acerta a direção em 0.9247 dos casos e ainda assim erra mais de 3,1 milhões de desvios; o VORTEX_2 acerta 0.9718 e erra apenas cerca de 287 mil. Os previsores estáticos ficam muito atrás nos dois benchmarks — taken e nottaken acertam a direção em torno de 0.35 — o que mostra que uma regra fixa simplesmente não descreve o padrão de desvios desses programas.</p>
-    <p>O impacto disso no CPI depende do benchmark. No LI_3, onde o perfect mede 2.0755, o bimodal custa 2.1949 (uns 5.75% acima do oráculo) e os estáticos disparam para perto de 2.9 — sinal de que o erro de desvio é uma fonte concreta de perda. O VORTEX_2 é o caso curioso: o bimodal medido (4.2781) ficou ligeiramente <em>abaixo</em> do perfect (4.3900). Não leio isso como o bimodal superando um oráculo, o que não faria sentido; leio como uma interação específica desta configuração no simulador, somada ao fato de que, com 0.9718 de acerto, o bimodal já remove quase todo o custo de desvio que havia ali para remover.</p>
-    <p>O que mais salta aos olhos é o ganho do bimodal sobre as alternativas estáticas. No LI_3 ele corta cerca de 24% do CPI tanto contra taken quanto contra nottaken; no VORTEX_2, onde havia menos a ganhar, ainda economiza por volta de 11%. A lição que tiro é que uma estrutura barata de contadores saturantes de 2 bits captura quase todo o comportamento de desvio que interessa — boa parte do caminho até o previsor perfeito é percorrida sem hardware sofisticado.</p>
+    <p>O bimodal acerta a direção do desvio em 0.9247 dos casos no LI_3 e em 0.9718 no VORTEX_2, e o acerto do endereço alvo acompanha de perto (0.8931 e 0.9677). O volume também difere: o LI_3 faz 53.1 milhões de consultas ao previsor e erra 3.1 milhões delas, enquanto o VORTEX_2 faz 10.5 milhões de consultas e erra apenas 287 mil. Os previsores estáticos ficam em torno de 0.35 de acerto de direção nos dois benchmarks, o que confirma que uma regra fixa não acompanha o padrão de desvios desses programas.</p>
+    <p>O custo no CPI varia bastante. No LI_3 o perfect mede 2.0755 e o bimodal 2.1949, cerca de 5.75% acima, enquanto taken e nottaken passam de 2.9, sinal de que o erro de desvio pesa de verdade aqui. No VORTEX_2 o bimodal medido (4.2781) ficou um pouco abaixo do perfect (4.3900). Não interpreto isso como o bimodal superando um oráculo, e sim como efeito da interação entre essa configuração e o simulador, somado ao fato de que, com 0.9718 de acerto, já quase não havia custo de desvio a eliminar.</p>
+    <p>O ganho do bimodal sobre os estáticos é o resultado mais consistente. No LI_3 ele reduz o CPI em torno de 24% tanto contra taken quanto contra nottaken; no VORTEX_2, onde havia menos a recuperar, a redução fica perto de 11%. Para o custo de uma tabela de contadores de 2 bits, é um retorno alto, que cobre boa parte da distância até o previsor perfeito.</p>
     """
 
 
 def task4_prose() -> str:
     return """
-    <h3>Qual configuração vale a pena</h3>
-    <p>Em CPI puro, a configuração robusta vence nos dois benchmarks. No LI_3 ela chega a 1.8929 (largura 8, RUU 128, LSQ 64 e quatro portas de memória), à frente dos 2.0242 da equilibrada e dos 2.1369 da econômica. No VORTEX_2 a robusta também lidera, com 3.7361 (largura 8, RUU 128, mas LSQ 128 e quatro portas de memória), batendo os 3.8872 da configuração de memória e os 4.1063 da econômica.</p>
-    <p>A pergunta mais honesta, porém, é se esse menor CPI paga o que cobra. No LI_3 a robusta melhora apenas 6.49% sobre a equilibrada, e para isso quase dobra o índice de custo — de 125.0 para 241.0, um salto de 93%. Se o critério é só CPI, fico com a robusta; se há orçamento de área e energia em jogo, a equilibrada é bem mais defensável, porque entrega 2.0242 a um custo bem menor. No VORTEX_2 o dilema é ainda mais agudo: a robusta ganha só 3.89% sobre a configuração de memória e, mesmo assim, leva o custo de 125.0 para 285.8 — mais que o dobro. Como esse benchmark tem 53.72% de instruções load/store, investir em LSQ e portas de memória faz sentido; mas uma LSQ de 128 entradas já é exagero diante do retorno medido.</p>
-    <p>É por isso que insisto em olhar além do CPI. Numa decisão de projeto real, eu pesaria área, energia dinâmica e estática, frequência máxima de clock, a complexidade da lógica de wakeup/select da RUU, o número de comparadores da LSQ, as portas da cache L1, a rede de bypass e até o esforço de verificação — exatamente o que encarece quando se amplia largura, janela, filas e memória. E há um cuidado final: separar recurso útil de recurso apenas caro. Para LI_3 e VORTEX_2, janela, LSQ e memória aparecem com justificativa experimental; já ampliar as unidades de ponto flutuante não se sustenta, porque essas cargas são predominantemente inteiras.</p>
+    <p>Em CPI, a configuração robusta vence nos dois benchmarks. No LI_3 ela chega a 1.8929 (IPC 0.53), com largura 8, RUU 128, LSQ 64 e quatro portas de memória, à frente dos 2.0242 da equilibrada e dos 2.1369 da econômica. No VORTEX_2 a robusta também lidera, com 3.7361 (IPC 0.27), usando LSQ 128 no lugar de 64, contra 3.8872 da configuração de memória e 4.1063 da econômica.</p>
+    <p>A questão é se esse CPI menor compensa o custo. No LI_3, a robusta melhora 6.49% sobre a equilibrada e para isso leva o índice de custo de 125.0 para 241.0, um aumento de 93%. Se o critério for só CPI, fico com a robusta; havendo orçamento de área e energia, a equilibrada se defende melhor, porque entrega 2.0242 por bem menos. No VORTEX_2 o desequilíbrio é maior: a robusta ganha apenas 3.89% sobre a configuração de memória e ainda assim leva o custo de 125.0 para 285.8. Como esse benchmark move 18.6 milhões de loads e 16.4 milhões de stores, ou 53.7% das instruções, investir em LSQ e memória se justifica, mas a LSQ de 128 entradas já passa do ponto de equilíbrio.</p>
+    <p>Convém olhar além do CPI também porque ele não conta tudo. A taxa de faltas na cache de dados quase não se mexe entre as três configurações, ficando perto de 5% no LI_3 e 7.2% no VORTEX_2, o que indica que ampliar janela e portas resolve a vazão, não a localidade dos acessos. Num projeto real eu pesaria área, energia, frequência de clock, a complexidade do wakeup/select da RUU, o número de comparadores da LSQ e o esforço de verificação, que são os custos que crescem ao ampliar essas estruturas. E manteria a distinção entre recurso útil e recurso caro: janela, LSQ e memória têm justificativa nos dados; ampliar ponto flutuante não tem, porque as duas cargas são majoritariamente inteiras.</p>
     """
 
 
@@ -638,28 +635,28 @@ def build_html(final: dict[str, Any], search: dict[str, Any] | None) -> str:
     <main>
       <section id="perfil">
         <h2>1. Perfil dos benchmarks e método</h2>
-        <p class="section-note">Trabalhei apenas com LI_3 e VORTEX_2, e fiz questão de entender o que cada um exercita antes de olhar para os números. O LI_3 é um interpretador Lisp rodando a entrada <code>train.lsp</code>: são pouco mais de 183 milhões de instruções, das quais 42.45% acessam memória. O VORTEX_2 é uma carga de banco de dados orientado a objetos com a entrada <code>tiny.in</code>, menor em volume (cerca de 65 milhões de instruções), porém mais pesada em memória — 53.72% das instruções são load ou store. Essa diferença de perfil é o fio que costura quase toda a análise adiante, em especial a customização da Tarefa 4.</p>
+        <p class="section-note">Trabalhei apenas com LI_3 e VORTEX_2. Antes dos números, vale registrar o que cada um exercita. O LI_3 é um interpretador Lisp rodando a entrada <code>train.lsp</code>, com pouco mais de 183 milhões de instruções, das quais 42.45% acessam memória. O VORTEX_2 é uma carga de banco de dados orientado a objetos com a entrada <code>tiny.in</code>, menor em volume (cerca de 65 milhões de instruções), porém mais pesada em memória: 53.72% das instruções são load ou store. Essa diferença de perfil pesa em quase toda a análise adiante, sobretudo na customização da Tarefa 4.</p>
         <div class="table-wrap">{benchmark_profile_table(final)}</div>
         <div class="method"><p><strong>Método.</strong> As Tarefas 1 a 3 seguem exatamente as configurações pedidas no enunciado. Para a Tarefa 4 eu fiz primeiro uma busca exploratória mais ampla e só depois escolhi três configurações finais por benchmark, respeitando o limite do trabalho. {h(search_note)}</p></div>
       </section>
       <section id="cobertura">
         <h2>2. Onde cada pergunta é respondida</h2>
-        <p class="section-note">Para facilitar a correção, deixo um mapa rápido das perguntas do enunciado. Ele não é o foco da página — as respostas vêm por extenso, dentro do texto de cada tarefa.</p>
+        <p class="section-note">Para facilitar a correção, deixo um mapa rápido das perguntas do enunciado. Ele não é o foco da página; as respostas vêm por extenso no texto de cada tarefa.</p>
         <div class="table-wrap coverage">{coverage_table()}</div>
       </section>
       <section id="t1">
-        <h2>3. Tarefa 1 — execução em ordem e fora de ordem</h2>
+        <h2>3. Tarefa 1: execução em ordem e fora de ordem</h2>
         <p class="section-note">Medi ciclos e CPI para as larguras 1, 2, 4 e 8, comparando o despacho em ordem com o despacho fora de ordem.</p>
         <p class="subhead">LI_3</p>
         <div class="table-wrap">{task1_table(final, 'LI_3')}</div>
         <p class="subhead">VORTEX_2</p>
         <div class="table-wrap">{task1_table(final, 'VORTEX_2')}</div>
-        {figure(task1_line_chart(final, 'LI_3'), 'LI_3 — CPI por largura. As curvas em ordem e fora de ordem só se separam de verdade a partir da largura 2.')}
-        {figure(task1_line_chart(final, 'VORTEX_2'), 'VORTEX_2 — CPI por largura. Mesmo padrão do LI_3, em um patamar de CPI mais alto.')}
+        {figure(task1_line_chart(final, 'LI_3'), 'CPI por largura no LI_3. As curvas em ordem e fora de ordem só se afastam a partir da largura 2.')}
+        {figure(task1_line_chart(final, 'VORTEX_2'), 'CPI por largura no VORTEX_2, no mesmo padrão do LI_3 mas em um patamar mais alto.')}
         {task1_prose()}
       </section>
       <section id="t2">
-        <h2>4. Tarefa 2 — tamanho da janela de instruções</h2>
+        <h2>4. Tarefa 2: tamanho da janela de instruções</h2>
         <p class="section-note">Variei o tamanho da RUU de 4 a 64, sempre fora de ordem. Como nas minhas configurações a LSQ cresce junto com a RUU, leio o efeito como o da janela de instruções inteira, e não só da fila de reordenação.</p>
         <p class="subhead">LI_3</p>
         <div class="table-wrap">{task2_table(final, 'LI_3')}</div>
@@ -669,7 +666,7 @@ def build_html(final: dict[str, Any], search: dict[str, Any] | None) -> str:
         {task2_prose()}
       </section>
       <section id="t3">
-        <h2>5. Tarefa 3 — previsão de desvios</h2>
+        <h2>5. Tarefa 3: previsão de desvios</h2>
         <p class="section-note">Comparei os previsores <code>nottaken</code>, <code>taken</code> e <code>bimod</code>, usando o <code>perfect</code> como referência. O bimodal é uma tabela de contadores saturantes de 2 bits indexada pelo endereço do desvio.</p>
         <p class="subhead">LI_3</p>
         <div class="table-wrap">{task3_table(final, 'LI_3')}</div>
@@ -679,25 +676,25 @@ def build_html(final: dict[str, Any], search: dict[str, Any] | None) -> str:
         {task3_prose()}
       </section>
       <section id="t4">
-        <h2>6. Tarefa 4 — customização do processador</h2>
+        <h2>6. Tarefa 4: customização do processador</h2>
         <p class="section-note">Testei até três configurações por benchmark e comparei desempenho contra um índice de custo. Reforço que esse índice é heurístico: usei-o para organizar a discussão, não como estimativa física de área.</p>
         <p class="subhead">LI_3</p>
         <div class="table-wrap">{task4_table(final, 'LI_3')}</div>
         <p class="subhead">VORTEX_2</p>
         <div class="table-wrap">{task4_table(final, 'VORTEX_2')}</div>
-        {figure(task4_scatter_chart(final), 'Custo arquitetural × CPI. Cada benchmark forma o próprio grupo; quanto mais para o canto inferior esquerdo, melhor o compromisso.')}
+        {figure(task4_scatter_chart(final), 'Custo arquitetural contra CPI. Cada benchmark forma o próprio grupo; quanto mais para o canto inferior esquerdo, melhor o compromisso.')}
         {task4_prose()}
       </section>
       <section id="dados">
         <h2>7. Dados e limitações</h2>
-        <p>Todos os números desta página vêm de <a href="data/jean-final-results.json"><code>site/data/jean-final-results.json</code></a>. A busca exploratória da Tarefa 4, quando publicada junto ao site, fica em <a href="data/jean-task4-search-results.json"><code>site/data/jean-task4-search-results.json</code></a>.</p>
+        <p>Todos os números desta página vêm de <a href="data/jean-final-results.json"><code>site/data/jean-final-results.json</code></a>. A busca exploratória da Tarefa 4, quando publicada junto ao site, fica em <a href="data/jean-task4-search-results.json"><code>site/data/jean-task4-search-results.json</code></a>. O código que gera esta página e os dados completos estão no repositório <a href="https://github.com/Jean-Reinhold/sim-outorder">github.com/Jean-Reinhold/sim-outorder</a>.</p>
         <div class="conclusion">
-          <p><strong>Conclusão geral.</strong> Os dois benchmarks respondem bem a execução fora de ordem, janelas maiores e previsão dinâmica de desvios — mas cada um pede uma ênfase diferente. O LI_3 brilha na combinação de largura alta com fora de ordem e ainda paga um pedágio visível por erros de desvio. O VORTEX_2, mais pesado em memória, recompensa antes de tudo o investimento em janela, LSQ e portas de memória, e só depois o resto.</p>
+          <p><strong>Conclusão geral.</strong> Os dois benchmarks respondem bem a execução fora de ordem, janelas maiores e previsão dinâmica de desvios, mas cada um pede uma ênfase diferente. O LI_3 se beneficia bastante de largura alta combinada com execução fora de ordem, e ainda perde desempenho relevante por erros de desvio. O VORTEX_2, mais pesado em memória, recompensa antes de tudo janela, LSQ e portas de memória, e só depois o resto.</p>
           <p><strong>Limitação.</strong> O índice de custo é uma aproximação para discussão acadêmica. Um projeto real exigiria modelagem de área, potência, frequência e do impacto físico de cada estrutura que ampliei.</p>
         </div>
       </section>
     </main>
-    <footer>Página escrita e mantida por Jean Reinhold para os benchmarks LI_3 e VORTEX_2. As tabelas e os gráficos são gerados a partir dos resultados medidos; o texto de análise é autoral.</footer>
+    <footer>Página escrita e mantida por Jean Reinhold para os benchmarks LI_3 e VORTEX_2. As tabelas e os gráficos são gerados a partir dos resultados medidos; o texto de análise é autoral. Código e dados no GitHub: <a href="https://github.com/Jean-Reinhold/sim-outorder">github.com/Jean-Reinhold/sim-outorder</a>.</footer>
   </div>
 </body>
 </html>
