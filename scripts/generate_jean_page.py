@@ -450,36 +450,43 @@ def task3_bar_chart(data: dict[str, Any]) -> str:
     )
 
 
-def task4_pyramid(data: dict[str, Any]) -> str:
-    tiers = [
-        ("Robusto", "task4_li3_robusto", "task4_vortex2_robusto", "#003d73"),
-        ("Equilibrado · Memória", "task4_li3_equilibrado", "task4_vortex2_memoria", "#2f6092"),
-        ("Econômico", "task4_li3_economico", "task4_vortex2_economico", "#6d92b8"),
+def task4_tradeoff_triangle(_data: dict[str, Any] | None = None) -> str:
+    # The classic "pick two" design triangle. The three configuration fronts lean
+    # toward different pairs of goals; none reaches all three corners.
+    apex = (490, 58)
+    bottom_left = (235, 322)
+    bottom_right = (745, 322)
+    corners = [
+        (apex[0], 36, "Desempenho", "(menor CPI)"),
+        (bottom_left[0] - 18, 346, "Custo baixo", "(menos recursos)"),
+        (bottom_right[0] + 18, 346, "Simplicidade", "(menos complexidade)"),
     ]
-    geometry = [(24, 112, 150, 220), (116, 204, 220, 290), (208, 296, 290, 360)]
-    center = 490
-    blocks = []
-    for (name, li_exp, vo_exp, color), (top_y, bottom_y, top_hw, bottom_hw) in zip(tiers, geometry):
-        li = find_run(data, "LI_3", li_exp)
-        vo = find_run(data, "VORTEX_2", vo_exp)
-        li_cost = cost_index(li.get("options", {})) if li else None
-        vo_cost = cost_index(vo.get("options", {})) if vo else None
-        pts = (
-            f"{center - top_hw},{top_y} {center + top_hw},{top_y} "
-            f"{center + bottom_hw},{bottom_y} {center - bottom_hw},{bottom_y}"
-        )
-        mid = (top_y + bottom_y) / 2
-        blocks.append(
-            f'<polygon points="{pts}" fill="{color}"/>'
-            f'<text x="{center}" y="{mid - 13:.0f}" text-anchor="middle" fill="#ffffff" font-size="17" font-weight="700">{h(name)}</text>'
-            f'<text x="{center}" y="{mid + 7:.0f}" text-anchor="middle" fill="#eaf2fb" font-size="12.5">LI_3 · CPI {fmt(cpi(li), 2)} · custo {fmt(li_cost, 0)}</text>'
-            f'<text x="{center}" y="{mid + 25:.0f}" text-anchor="middle" fill="#eaf2fb" font-size="12.5">VORTEX_2 · CPI {fmt(cpi(vo), 2)} · custo {fmt(vo_cost, 0)}</text>'
-        )
+    # (name, x, y, "abre mão de ...")
+    configs = [
+        ("Robusto", 490, 140, "abre mão de custo e simplicidade"),
+        ("Equilibrado · Memória", 372, 212, "abre mão de simplicidade"),
+        ("Econômico", 490, 286, "abre mão de desempenho"),
+    ]
+    triangle = (
+        f'<polygon points="{apex[0]},{apex[1]} {bottom_right[0]},{bottom_right[1]} {bottom_left[0]},{bottom_left[1]}" '
+        f'fill="#eef4fb" stroke="#9fb8d4" stroke-width="1.5"/>'
+    )
+    corner_text = "".join(
+        f'<text x="{x}" y="{y}" text-anchor="middle" fill="#06233f" font-size="15" font-weight="800">{h(title)}</text>'
+        f'<text x="{x}" y="{y + 16}" text-anchor="middle" fill="#5d6b80" font-size="11">{h(sub)}</text>'
+        for x, y, title, sub in corners
+    )
+    markers = "".join(
+        f'<circle cx="{x}" cy="{y}" r="8" fill="#003d73" stroke="#ffffff" stroke-width="2"/>'
+        f'<text x="{x}" y="{y - 14}" text-anchor="middle" fill="#06233f" font-size="14" font-weight="800">{h(name)}</text>'
+        f'<text x="{x}" y="{y + 23}" text-anchor="middle" fill="#5d6b80" font-size="11.5">{h(trade)}</text>'
+        for name, x, y, trade in configs
+    )
     return (
-        '<svg class="plot-svg" viewBox="0 0 980 320" role="img" aria-label="As três frentes de configuração da Tarefa 4">'
-        '<title>As três frentes de configuração da Tarefa 4</title>'
-        '<text x="18" y="16" class="plot-axis">do menor custo (base) ao máximo desempenho (topo)</text>'
-        f'{"".join(blocks)}</svg>'
+        '<svg class="plot-svg" viewBox="0 0 980 372" role="img" aria-label="Triângulo de projeto: desempenho, custo e simplicidade">'
+        '<title>Triângulo de projeto: escolha dois</title>'
+        '<text x="18" y="18" class="plot-axis">três metas que competem: nenhuma configuração alcança os três cantos</text>'
+        f'{triangle}{corner_text}{markers}</svg>'
     )
 
 
@@ -776,7 +783,7 @@ def build_html(final: dict[str, Any], search: dict[str, Any] | None) -> str:
         <div class="table-wrap">{task4_table(final, 'LI_3')}</div>
         <p class="subhead">VORTEX_2</p>
         <div class="table-wrap">{task4_table(final, 'VORTEX_2')}</div>
-        {figure(task4_pyramid(final), 'As três frentes de configuração, da base econômica ao topo robusto. Os valores são por benchmark.')}
+        {figure(task4_tradeoff_triangle(final), 'O triângulo de projeto: desempenho, custo baixo e simplicidade competem entre si. A econômica fica com custo baixo e simplicidade, a equilibrada troca simplicidade por desempenho a custo controlado, e a robusta maximiza desempenho abrindo mão das outras duas.')}
         {figure(task4_scatter_chart(final, search), 'Custo contra CPI. Os pontos claros são as 99 configurações simuladas na busca por benchmark; os destacados são as três escolhidas.')}
         {task4_prose()}
       </section>
